@@ -35,11 +35,11 @@ export function validateRates(rates) {
 /**
  * Add a new family with rates
  * @param {string} userId - User ID
- * @param {Object} familyData - { name, rates: { childCount: hourlyRate, ... } }
+ * @param {Object} familyData - { name, rates: { childCount: hourlyRate, ... }, lunchDiscount?: number }
  * @returns {Promise<string>} Family ID
  */
 export async function addFamily(userId, familyData) {
-  const { name, rates } = familyData
+  const { name, rates, lunchDiscount } = familyData
 
   if (!name || name.trim() === '') {
     throw new Error('Family name is required')
@@ -48,12 +48,18 @@ export async function addFamily(userId, familyData) {
   validateRates(rates)
 
   const familiesRef = collection(db, 'users', userId, 'families')
-  const docRef = await addDoc(familiesRef, {
+  const data = {
     name: name.trim(),
     rates,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
-  })
+  }
+  
+  if (lunchDiscount !== undefined && lunchDiscount > 0) {
+    data.lunchDiscount = lunchDiscount
+  }
+  
+  const docRef = await addDoc(familiesRef, data)
 
   return docRef.id
 }
@@ -97,11 +103,11 @@ export async function getFamily(userId, familyId) {
  * Update family data
  * @param {string} userId - User ID
  * @param {string} familyId - Family ID
- * @param {Object} updates - Fields to update (name, rates)
+ * @param {Object} updates - Fields to update (name, rates, lunchDiscount)
  * @returns {Promise<void>}
  */
 export async function updateFamily(userId, familyId, updates) {
-  const { name, rates } = updates
+  const { name, rates, lunchDiscount } = updates
 
   if (name !== undefined && (name === null || name.trim() === '')) {
     throw new Error('Family name is required')
@@ -116,6 +122,9 @@ export async function updateFamily(userId, familyId, updates) {
 
   if (name !== undefined) dataToUpdate.name = name.trim()
   if (rates !== undefined) dataToUpdate.rates = rates
+  if (lunchDiscount !== undefined) {
+    dataToUpdate.lunchDiscount = lunchDiscount > 0 ? lunchDiscount : null
+  }
 
   dataToUpdate.updatedAt = Timestamp.now()
 

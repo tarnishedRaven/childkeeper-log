@@ -29,6 +29,7 @@ export default function Families() {
   const [formData, setFormData] = useState({
     name: "",
     rates: DEFAULT_RATES,
+    lunchDiscount: "",
   });
 
   useEffect(() => {
@@ -67,15 +68,17 @@ export default function Families() {
         await updateFamily(user.uid, editingId, {
           name: formData.name,
           rates,
+          lunchDiscount: formData.lunchDiscount !== "" ? parseFloat(formData.lunchDiscount) : undefined,
         });
       } else {
         await addFamily(user.uid, {
           name: formData.name,
           rates,
+          lunchDiscount: formData.lunchDiscount !== "" ? parseFloat(formData.lunchDiscount) : undefined,
         });
       }
 
-      setFormData({ name: "", rates: DEFAULT_RATES });
+      setFormData({ name: "", rates: DEFAULT_RATES, lunchDiscount: "" });
       setEditingId(null);
       setShowForm(false);
       await loadFamilies();
@@ -98,6 +101,7 @@ export default function Families() {
     setFormData({
       name: family.name,
       rates: normalizedRates,
+      lunchDiscount: family.lunchDiscount || "",
     });
     setShowForm(true);
   };
@@ -130,7 +134,7 @@ export default function Families() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData({ name: "", rates: DEFAULT_RATES });
+    setFormData({ name: "", rates: DEFAULT_RATES, lunchDiscount: "" });
   };
 
   if (loading) {
@@ -186,6 +190,29 @@ export default function Families() {
                   className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent placeholder-figma-text-placeholder"
                   placeholder="e.g., Smith Family"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-figma-text-secondary mb-1">
+                  Lunch Discount (USD/hr)
+                </label>
+                <p className="text-xs text-figma-text-placeholder mb-3">
+                  Amount to deduct from hourly rate when lunch is provided
+                </p>
+                <div className="mb-6 relative">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.lunchDiscount}
+                    onChange={(e) =>
+                      setFormData({ ...formData, lunchDiscount: e.target.value })
+                    }
+                    className="w-full pl-7 pr-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent placeholder-figma-text-placeholder"
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
 
               <div>
@@ -284,6 +311,11 @@ export default function Families() {
                         </li>
                       ))}
                   </ul>
+                  {family.lunchDiscount && (
+                    <p className="text-sm text-figma-text-secondary mt-2">
+                      Lunch discount: ${family.lunchDiscount}/hr
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-4">
                   <button

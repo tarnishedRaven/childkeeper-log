@@ -28,6 +28,7 @@ export default function FamilyLogs() {
     numChildren: 1,
     rate: "",
     notes: "",
+    hadLunch: false,
   });
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
@@ -89,13 +90,22 @@ export default function FamilyLogs() {
     setError("");
     setSuccess("");
     setEditingEntryId(entry.id);
+    
+    // If hadLunch was true when saved, the stored rate is the effective rate
+    // Recover the base rate by adding back the lunch discount (multiplied by children count)
+    let baseRate = entry.rate;
+    if (entry.hadLunch && family?.lunchDiscount) {
+      baseRate = entry.rate + (family.lunchDiscount * entry.numChildren);
+    }
+    
     setEditForm({
       date: entry.date,
       startTime: entry.startTime,
       endTime: entry.endTime,
       numChildren: entry.numChildren,
-      rate: entry.rate.toString(),
+      rate: baseRate.toString(),
       notes: entry.notes || "",
+      hadLunch: entry.hadLunch || false,
     });
   };
 
@@ -108,12 +118,13 @@ export default function FamilyLogs() {
       numChildren: 1,
       rate: "",
       notes: "",
+      hadLunch: false,
     });
   };
 
   const handleChildCountChange = (value) => {
     const numChildren = parseInt(value, 10);
-    const rateFromFamily = family?.rates?.[numChildren];
+    const rateFromFamily = family?.rates?.[numChildren.toString()];
 
     setEditForm((prev) => ({
       ...prev,
@@ -121,6 +132,12 @@ export default function FamilyLogs() {
       rate:
         rateFromFamily !== undefined ? rateFromFamily.toString() : prev.rate,
     }));
+  };
+
+  const getEffectiveRate = () => {
+    const baseRate = parseFloat(editForm.rate) || 0;
+    const lunchDiscount = (family?.lunchDiscount || 0) * editForm.numChildren;
+    return editForm.hadLunch ? Math.max(0, baseRate - lunchDiscount) : baseRate;
   };
 
   const saveEdit = async () => {
@@ -131,14 +148,24 @@ export default function FamilyLogs() {
       setError("");
       setSuccess("");
 
+      const baseRate = parseFloat(editForm.rate);
+      
+      // Calculate effective rate with lunch discount (multiplied by number of children)
+      let effectiveRate = baseRate;
+      if (editForm.hadLunch && family?.lunchDiscount) {
+        const totalLunchDiscount = family.lunchDiscount * editForm.numChildren;
+        effectiveRate = Math.max(0, baseRate - totalLunchDiscount);
+      }
+
       await updateTimeEntry(user.uid, editingEntryId, {
         familyId: family.id,
         date: editForm.date,
         startTime: editForm.startTime,
         endTime: editForm.endTime,
         numChildren: parseInt(editForm.numChildren, 10),
-        rate: parseFloat(editForm.rate),
+        rate: effectiveRate,
         notes: editForm.notes,
+        hadLunch: editForm.hadLunch,
       });
 
       setSuccess("Entry updated successfully!");
@@ -357,6 +384,8 @@ export default function FamilyLogs() {
                     <label className="block text-sm font-medium text-figma-text-secondary mb-1">
                       Rate (USD/hr)
                     </label>
+                    <div className="relative mb-4">
+                    <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
                     <input
                       type="number"
                       step="0.01"
@@ -368,8 +397,32 @@ export default function FamilyLogs() {
                           rate: e.target.value,
                         }))
                       }
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
+                      className="w-full pl-7 px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
                     />
+                    </div>
+                    {family?.lunchDiscount && (
+                      <div className="mb-4 p-3 bg-figma-elevated rounded-md border border-figma-border">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editForm.hadLunch}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({
+                                ...prev,
+                                hadLunch: e.target.checked,
+                              }))
+                            }
+                            className="w-4 h-4 rounded border-figma-border bg-figma-surface cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-figma-text-secondary">
+                            Lunch provided (-${family.lunchDiscount}/hr per child)
+                          </span>
+                        </label>
+                        <p className="text-xs text-figma-text-placeholder mt-2">
+                          Effective rate: ${getEffectiveRate().toFixed(2)}/hr
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -434,6 +487,9 @@ export default function FamilyLogs() {
                         <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
                           Rate
                         </th>
+                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">
+                          Lunch
+                        </th>
                         <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
                           Total
                         </th>
@@ -458,6 +514,9 @@ export default function FamilyLogs() {
                             </td>
                             <td className="border border-figma-border px-4 py-2 text-right text-white">
                               ${entry.rate}
+                            </td>
+                            <td className="border border-figma-border px-4 py-2 text-center text-white">
+                              {entry.hadLunch ? "✓" : "-"}
                             </td>
                             <td className="border border-figma-border px-4 py-2 text-right font-bold text-figma-success">
                               ${entry.totalEarned}

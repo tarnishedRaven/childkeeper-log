@@ -28,6 +28,7 @@ export default function LogHours() {
     numChildren: 1,
     rate: "",
     notes: "",
+    hadLunch: false,
   };
 
   const [families, setFamilies] = useState([]);
@@ -103,14 +104,25 @@ export default function LogHours() {
     setSuccess("");
 
     try {
+      const selectedFamily = families.find((f) => f.id === formData.familyId);
+      const baseRate = parseFloat(formData.rate);
+      
+      // Calculate effective rate with lunch discount (multiplied by number of children)
+      let effectiveRate = baseRate;
+      if (formData.hadLunch && selectedFamily?.lunchDiscount) {
+        const totalLunchDiscount = selectedFamily.lunchDiscount * formData.numChildren;
+        effectiveRate = Math.max(0, baseRate - totalLunchDiscount);
+      }
+
       const payload = {
         familyId: formData.familyId,
         date: formData.date,
         startTime: formData.startTime,
         endTime: formData.endTime,
         numChildren: formData.numChildren,
-        rate: parseFloat(formData.rate),
+        rate: effectiveRate,
         notes: formData.notes,
+        hadLunch: formData.hadLunch,
       };
 
       if (editingEntryId) {
@@ -147,14 +159,24 @@ export default function LogHours() {
     setError("");
     setSuccess("");
     setEditingEntryId(entry.id);
+    
+    // If hadLunch was true when saved, the stored rate is the effective rate
+    // Recover the base rate by adding back the lunch discount (multiplied by children count)
+    const selectedFamily = families.find((f) => f.id === entry.familyId);
+    let baseRate = entry.rate;
+    if (entry.hadLunch && selectedFamily?.lunchDiscount) {
+      baseRate = entry.rate + (selectedFamily.lunchDiscount * entry.numChildren);
+    }
+    
     setFormData({
       familyId: entry.familyId,
       date: entry.date,
       startTime: entry.startTime,
       endTime: entry.endTime,
       numChildren: entry.numChildren,
-      rate: entry.rate.toString(),
+      rate: baseRate.toString(),
       notes: entry.notes || "",
+      hadLunch: entry.hadLunch || false,
     });
   };
 
@@ -317,7 +339,7 @@ export default function LogHours() {
                     <label className="block text-sm font-medium text-figma-text-secondary mb-1">
                       Rate (USD/hr) - Can override
                     </label>
-                    <div className="relative">
+                    <div className="relative mb-4">
                       <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
                       <input
                         type="number"
@@ -332,6 +354,29 @@ export default function LogHours() {
                         placeholder="0.00"
                       />
                     </div>
+                    {selectedFamily?.lunchDiscount && (
+                      <div className="mb-4 p-3 bg-figma-elevated rounded-md border border-figma-border">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.hadLunch}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                hadLunch: e.target.checked,
+                              }))
+                            }
+                            className="w-4 h-4 rounded border-figma-border bg-figma-surface cursor-pointer"
+                          />
+                          <span className="text-sm font-medium text-figma-text-secondary">
+                            Lunch provided (-${selectedFamily.lunchDiscount}/hr per child)
+                          </span>
+                        </label>
+                        <p className="text-xs text-figma-text-placeholder mt-2">
+                          Effective rate: ${(Math.max(0, parseFloat(formData.rate || 0) - (selectedFamily.lunchDiscount * formData.numChildren))).toFixed(2)}/hr
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -395,6 +440,9 @@ export default function LogHours() {
                           <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
                             Rate
                           </th>
+                          <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">
+                            Lunch
+                          </th>
                           <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
                             Total
                           </th>
@@ -429,6 +477,9 @@ export default function LogHours() {
                               </td>
                               <td className="border border-figma-border px-4 py-2 text-right text-white">
                                 ${entry.rate}
+                              </td>
+                              <td className="border border-figma-border px-4 py-2 text-center text-white">
+                                {entry.hadLunch ? "✓" : "-"}
                               </td>
                               <td className="border border-figma-border px-4 py-2 text-right font-bold text-figma-success">
                                 ${entry.totalEarned}

@@ -56,11 +56,11 @@ export function calculateEarnings(duration, rate) {
 /**
  * Add a new time entry
  * @param {string} userId - User ID
- * @param {Object} entryData - { familyId, date, startTime, endTime, numChildren, rate, notes }
+ * @param {Object} entryData - { familyId, date, startTime, endTime, numChildren, rate, notes, hadLunch }
  * @returns {Promise<string>} Entry ID
  */
 export async function addTimeEntry(userId, entryData) {
-  const { familyId, date, startTime, endTime, numChildren, rate, notes } = entryData
+  const { familyId, date, startTime, endTime, numChildren, rate, notes, hadLunch } = entryData
 
   if (!familyId) throw new Error('Family ID is required')
   if (!date) throw new Error('Date is required')
@@ -87,6 +87,7 @@ export async function addTimeEntry(userId, entryData) {
     rate,
     totalEarned,
     notes: notes || '',
+    hadLunch: hadLunch || false,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   })
@@ -160,7 +161,7 @@ export async function getTimeEntriesByFamily(userId, familyId, startDate, endDat
  * @returns {Promise<void>}
  */
 export async function updateTimeEntry(userId, entryId, updates) {
-  const { familyId, date, startTime, endTime, rate, numChildren, notes } = updates
+  const { familyId, date, startTime, endTime, rate, numChildren, notes, hadLunch } = updates
 
   const dataToUpdate = {}
 
@@ -210,6 +211,7 @@ export async function updateTimeEntry(userId, entryId, updates) {
   }
 
   if (notes !== undefined) dataToUpdate.notes = notes
+  if (hadLunch !== undefined) dataToUpdate.hadLunch = hadLunch
 
   dataToUpdate.updatedAt = Timestamp.now()
 

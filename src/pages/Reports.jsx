@@ -264,7 +264,13 @@ export default function Reports() {
                                   Date
                                 </th>
                                 <th className="border border-gray-300 px-4 py-2 text-center">
-                                  Time
+                                  Duration (hours)
+                                </th>
+                                <th className="border border-gray-300 px-4 py-2 text-right">
+                                  Rate
+                                </th>
+                                <th className="border border-gray-300 px-4 py-2 text-center">
+                                  Lunch
                                 </th>
                                 <th className="border border-gray-300 px-4 py-2 text-right">
                                   Amount
@@ -272,22 +278,30 @@ export default function Reports() {
                               </tr>
                             </thead>
                             <tbody>
-                              {family.byDate.map((day) => (
-                                <tr
-                                  key={`${family.familyId}-${day.date}`}
-                                  className="hover:bg-gray-50"
-                                >
-                                  <td className="border border-gray-300 px-4 py-2">
-                                    {formatReportDate(day.date)}
-                                  </td>
-                                  <td className="border border-gray-300 px-4 py-2 text-center">
-                                    {formatHours(day.totalHours)}
-                                  </td>
-                                  <td className="border border-gray-300 px-4 py-2 text-right font-medium">
-                                    {formatCurrency(day.totalEarned)}
-                                  </td>
-                                </tr>
-                              ))}
+                              {family.byDate.map((day) =>
+                                day.entries.map((entry, idx) => (
+                                  <tr
+                                    key={`${family.familyId}-${entry.id || idx}`}
+                                    className="hover:bg-gray-50"
+                                  >
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {idx === 0 ? formatReportDate(day.date) : ""}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2 text-center">
+                                      {Number(entry.duration || 0).toFixed(2)}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2 text-right">
+                                      ${entry.rate}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2 text-center">
+                                      {entry.hadLunch ? "✓" : "-"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2 text-right font-medium">
+                                      {formatCurrency(entry.totalEarned)}
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
                             </tbody>
                           </table>
                         </div>
