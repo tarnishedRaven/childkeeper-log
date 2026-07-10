@@ -8,6 +8,8 @@ import {
   updateFamily,
   deleteFamily,
 } from "../services/familyService";
+import SyncStatusBanner from "../components/SyncStatusBanner";
+import useConnectivityStatus from "../hooks/useConnectivityStatus";
 
 const DEFAULT_RATES = { 1: "", 2: "", 3: "" };
 
@@ -20,6 +22,8 @@ function getSortedChildCounts(rates) {
 
 export default function Families() {
   const { user } = useAuth();
+  const { isOnline, hasPendingSync, markPendingSync, clearPendingSync } =
+    useConnectivityStatus();
   const navigate = useNavigate();
   const [families, setFamilies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +47,9 @@ export default function Families() {
       if (user) {
         const data = await getFamilies(user.uid);
         setFamilies(data);
+        if (isOnline && hasPendingSync) {
+          clearPendingSync();
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -76,6 +83,10 @@ export default function Families() {
           rates,
           lunchDiscount: formData.lunchDiscount !== "" ? parseFloat(formData.lunchDiscount) : undefined,
         });
+      }
+
+      if (!isOnline) {
+        markPendingSync();
       }
 
       setFormData({ name: "", rates: DEFAULT_RATES, lunchDiscount: "" });
@@ -124,6 +135,9 @@ export default function Families() {
     if (window.confirm("Are you sure you want to delete this family?")) {
       try {
         await deleteFamily(user.uid, id);
+        if (!isOnline) {
+          markPendingSync();
+        }
         await loadFamilies();
       } catch (err) {
         setError(err.message);
@@ -152,6 +166,7 @@ export default function Families() {
     <>
       <Navbar />
       <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <SyncStatusBanner isOnline={isOnline} hasPendingSync={hasPendingSync} />
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-white">Families</h1>
           {!showForm && (
@@ -200,7 +215,7 @@ export default function Families() {
                   Amount to deduct from hourly rate when lunch is provided
                 </p>
                 <div className="mb-6 relative">
-                  <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
+                  <span className="absolute inset-y-0 left-3 flex items-center text-[#beff8b] pointer-events-none">$</span>
                   <input
                     type="number"
                     step="0.01"
@@ -216,26 +231,34 @@ export default function Families() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-figma-text-secondary mb-4">
+                <label className="block text-sm font-medium text-figma-text-secondary mb-1">
                   Hourly Rates (USD)
                 </label>
+                <p className="text-xs text-figma-text-placeholder mb-3">
+                  Add the hourly rates for a family based on the number of children present for that family
+                </p>
                 <div className="mb-3">
                   <button
                     type="button"
                     onClick={handleAddChildTier}
-                    className="px-3 py-2 text-sm bg-figma-elevated text-figma-text-secondary rounded-md hover:bg-[#464646] transition"
+                    className="px-3 py-2 text-sm bg-figma-elevated text-figma-text-secondary rounded-md hover:bg-[#464646] transition flex items-center gap-2"
                   >
-                    + Add Child Tier
+                    <svg className="w-5 h-5" fill="none" stroke="#beff8b" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10" strokeWidth="2" />
+                      <line x1="12" y1="8" x2="12" y2="16" strokeWidth="2" />
+                      <line x1="8" y1="12" x2="16" y2="12" strokeWidth="2" />
+                    </svg>
+                    Add Child Tier
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {getSortedChildCounts(formData.rates).map((childCount) => (
                     <div key={childCount}>
                       <label className="block text-xs text-figma-text-placeholder mb-1">
-                        {childCount} child{childCount > 1 ? "ren" : ""}
+                        Hourly rate for {childCount} child{childCount > 1 ? "ren" : ""}
                       </label>
                       <div className="relative">
-                        <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
+                        <span className="absolute inset-y-0 left-3 flex items-center text-[#beff8b] pointer-events-none">$</span>
                         <input
                           type="number"
                           step="0.01"

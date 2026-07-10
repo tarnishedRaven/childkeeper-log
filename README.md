@@ -4,11 +4,8 @@ A whimsical web app for tracking childcare work hours, managing family rates, an
 
 ## Features
 
-- **User Authentication**: Secure sign-up and sign-in with Firebase
-- **Family Management**: Add families and configure hourly rates based on number of children
-- **Time Entry Logging**: Log hours with start/end times, automatically calculates earnings
-- **Reports & Export**: Generate monthly summaries and export to PDF
-- **Responsive Design**: Works beautifully on mobile, tablet, and desktop
+- **Progressive Web App (PWA)**: Installable on desktop/mobile with offline shell caching
+- **Offline Sync Support**: Firestore persists local writes and syncs automatically when back online
 
 ## Tech Stack
 
@@ -17,9 +14,34 @@ A whimsical web app for tracking childcare work hours, managing family rates, an
 - **Testing**: Vitest + React Testing Library
 - **PDF Export**: jsPDF + html2canvas
 
+PWA build artifacts are generated in `dist`:
+
+- `manifest.webmanifest`
+- `sw.js`
+- `workbox-*.js`
+
 ## Setup
 
 ### Prerequisites
+
+## PWA Notes
+
+- The app is installable on Chromium browsers and iOS Safari (Add to Home Screen).
+- Supported browsers show an in-app install prompt when installation is available.
+- On iOS Safari, an in-app hint explains how to use Share > Add to Home Screen.
+- App shell/static assets are cached for offline startup after first load.
+- Uncached navigation requests fall back to a dedicated offline page (`/offline.html`).
+- Firestore uses persistent local cache with multi-tab support; writes made offline are queued locally and synced when reconnected.
+- A connectivity banner indicates offline mode and pending reconnect sync state.
+- When a new service worker is available, an in-app update prompt appears.
+
+### PWA Verification Checklist
+
+1. Run `npm run build` and confirm `manifest.webmanifest` and `sw.js` exist in `dist`.
+2. Run `npm run preview`, open app, then switch to offline mode in browser devtools.
+3. Refresh and verify the app shell still loads.
+4. Create or edit records while offline and verify they appear and then sync after reconnecting.
+5. Run Lighthouse PWA audit against preview/deployed URL.
 
 - Node.js 16+ and npm
 - Firebase project (get credentials from console.firebase.google.com)

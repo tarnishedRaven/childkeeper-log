@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1E1E1E" />
+    <title>Offline | Childkeeper's Log</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at top, #2a2a2a, #1b1b1b 55%, #121212);
+        color: #f4f4f4;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+        padding: 1.5rem;
+      }
+
+      .card {
+        width: min(520px, 100%);
+        border: 1px solid #3f3f3f;
+        background: rgba(30, 30, 30, 0.92);
+        border-radius: 14px;
+        padding: 1.5rem;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+      }
+
+      h1 {
+        margin: 0 0 0.6rem;
+        font-size: clamp(1.4rem, 1.8vw, 1.9rem);
+      }
+
+      p {
+        margin: 0 0 1rem;
+        color: #cecece;
+        line-height: 1.5;
+      }
+
+      ul {
+        margin: 0 0 1.1rem;
+        padding-left: 1.2rem;
+        color: #dfdfdf;
+      }
+
+      li + li {
+        margin-top: 0.4rem;
+      }
+
+      a,
+      button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 600;
+        padding: 0.65rem 1rem;
+      }
+
+      .primary {
+        background: #beff8b;
+        color: #151515;
+      }
+
+      .secondary {
+        background: #2b2b2b;
+        color: #f3f3f3;
+        margin-left: 0.6rem;
+      }
+
+      @media (max-width: 440px) {
+        .secondary {
+          margin-left: 0;
+          margin-top: 0.6rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" aria-live="polite">
+      <h1>You are offline</h1>
+      <p>
+        Childkeeper's Log could not load this page without a connection. Cached
+        pages you already visited may still work.
+      </p>
+      <ul>
+        <li>Reconnect to sync any pending changes.</li>
+        <li>Try the app again once your internet returns.</li>
+      </ul>
+      <a class="primary" href="/">Go to Dashboard</a>
+      <button class="secondary" type="button" onclick="window.location.reload()">
+        Retry
+      </button>
+    </main>
+  </body>
+</html>

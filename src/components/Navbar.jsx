@@ -43,7 +43,7 @@ export default function Navbar() {
                 to={item.path}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition ${
                   isActive(item.path)
-                    ? "bg-figma-elevated text-white"
+                    ? "bg-[#beff8b] text-figma-bg"
                     : "text-figma-text-secondary hover:bg-figma-elevated hover:text-white"
                 }`}
               >

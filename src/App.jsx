@@ -9,6 +9,8 @@ import Families from './pages/Families'
 import FamilyLogs from './pages/FamilyLogs'
 import LogHours from './pages/LogHours'
 import Reports from './pages/Reports'
+import PwaUpdatePrompt from './components/PwaUpdatePrompt'
+import InstallAppPrompt from './components/InstallAppPrompt'
 
 function App() {
   return (
@@ -61,6 +63,8 @@ function App() {
 
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>
+        <InstallAppPrompt />
+        <PwaUpdatePrompt />
       </AuthProvider>
     </Router>
   )

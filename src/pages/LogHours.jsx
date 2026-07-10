@@ -8,6 +8,8 @@ import {
   updateTimeEntry,
   deleteTimeEntry,
 } from "../services/timeEntryService";
+import SyncStatusBanner from "../components/SyncStatusBanner";
+import useConnectivityStatus from "../hooks/useConnectivityStatus";
 
 function getAvailableChildCounts(family) {
   if (!family || !family.rates) return [];
@@ -20,6 +22,8 @@ function getAvailableChildCounts(family) {
 
 export default function LogHours() {
   const { user } = useAuth();
+  const { isOnline, hasPendingSync, markPendingSync, clearPendingSync } =
+    useConnectivityStatus();
   const defaultFormData = {
     familyId: "",
     date: new Date().toISOString().split("T")[0],
@@ -53,6 +57,9 @@ export default function LogHours() {
 
         const entriesData = await getRecentTimeEntries(user.uid, 10);
         setEntries(entriesData);
+        if (isOnline && hasPendingSync) {
+          clearPendingSync();
+        }
       }
     } catch (err) {
       setError(err.message);
@@ -133,6 +140,10 @@ export default function LogHours() {
         setSuccess("Hours logged successfully!");
       }
 
+      if (!isOnline) {
+        markPendingSync();
+      }
+
       setFormData(defaultFormData);
       setEditingEntryId(null);
 
@@ -148,6 +159,9 @@ export default function LogHours() {
     if (window.confirm("Delete this entry?")) {
       try {
         await deleteTimeEntry(user.uid, id);
+        if (!isOnline) {
+          markPendingSync();
+        }
         await loadData();
       } catch (err) {
         setError(err.message);
@@ -208,6 +222,7 @@ export default function LogHours() {
     <>
       <Navbar />
       <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <SyncStatusBanner isOnline={isOnline} hasPendingSync={hasPendingSync} />
         <h1 className="text-3xl font-bold text-white mb-8">Log Hours</h1>
 
         {error && (

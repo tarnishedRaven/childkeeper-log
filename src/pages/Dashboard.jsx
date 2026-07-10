@@ -1,10 +1,15 @@
 import Navbar from "../components/Navbar";
+import SyncStatusBanner from "../components/SyncStatusBanner";
+import useConnectivityStatus from "../hooks/useConnectivityStatus";
 
 export default function Dashboard() {
+  const { isOnline, hasPendingSync } = useConnectivityStatus();
+
   return (
     <>
       <Navbar />
       <div className="max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <SyncStatusBanner isOnline={isOnline} hasPendingSync={hasPendingSync} />
         <div className="bg-figma-surface rounded-lg p-8">
           <h1 className="text-4xl font-bold text-white mb-4">
             Welcome to The Childkeeper's Log
@@ -31,11 +36,11 @@ export default function Dashboard() {
               </a>
             </div>
 
-            <div className="bg-figma-elevated rounded-lg p-6 border border-figma-border">
-              <h2 className="text-xl font-semibold text-white mb-2">
+            <div className="bg-[#FFAB7A] rounded-lg p-6">
+              <h2 className="text-xl font-semibold text-figma-bg mb-2">
                 Log Hours
               </h2>
-              <p className="text-figma-text-secondary mb-4">
+              <p className="text-figma-bg mb-4">
                 Record your time with start and end times. Earnings are
                 calculated automatically.
               </p>
