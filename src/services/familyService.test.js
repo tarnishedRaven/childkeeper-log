@@ -13,122 +13,94 @@ vi.mock('../firebase', () => ({
   db: {},
 }))
 
-describe('Family Service', () => {
+describe('familyService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('validateRates', () => {
-    it('should accept valid rates', () => {
-      const rates = { 1: 25, 2: 35, 3: 45 }
-      expect(() => validateRates(rates)).not.toThrow()
-    })
-
-    it('should throw error for empty rates', () => {
-      expect(() => validateRates({})).toThrow('At least one rate must be configured')
-    })
-
-    it('should throw error for null rates', () => {
-      expect(() => validateRates(null)).toThrow('At least one rate must be configured')
-    })
-
-    it('should throw error for invalid child count', () => {
-      const rates = { 0: 25 }
-      expect(() => validateRates(rates)).toThrow('Child count must be a positive integer')
-    })
-
-    it('should throw error for zero or negative rate', () => {
-      const rates = { 1: 0 }
-      expect(() => validateRates(rates)).toThrow('must be a positive number')
-
-      const negativeRates = { 1: -10 }
-      expect(() => validateRates(negativeRates)).toThrow('must be a positive number')
-    })
+  it('validateRates accepts undefined and object', () => {
+    expect(() => validateRates(undefined)).not.toThrow()
+    expect(() => validateRates({ 1: 20 })).not.toThrow()
   })
 
-  describe('addFamily', () => {
-    it('should throw error for empty name', async () => {
-      await expect(
-        addFamily('userId123', { name: '', rates: { 1: 25 } })
-      ).rejects.toThrow('Family name is required')
-    })
-
-    it('should throw error for invalid rates', async () => {
-      await expect(
-        addFamily('userId123', { name: 'Smith Family', rates: {} })
-      ).rejects.toThrow('At least one rate must be configured')
-    })
-
-    it('should add family with valid data', async () => {
-      firestore.collection.mockReturnValue({})
-      firestore.addDoc.mockResolvedValue({ id: 'fam123' })
-
-      const familyId = await addFamily('userId123', {
-        name: 'Smith Family',
-        rates: { 1: 25, 2: 35 },
-      })
-
-      expect(familyId).toBe('fam123')
-      expect(firestore.addDoc).toHaveBeenCalled()
-    })
+  it('validateRates rejects non-object values', () => {
+    expect(() => validateRates(null)).toThrow('Rates must be an object when provided')
+    expect(() => validateRates(10)).toThrow('Rates must be an object when provided')
   })
 
-  describe('getFamilies', () => {
-    it('should retrieve all families for user', async () => {
-      const mockFamilies = [
-        { id: 'fam1', name: 'Smith Family', rates: { 1: 25 } },
-        { id: 'fam2', name: 'Jones Family', rates: { 1: 30 } },
-      ]
-
-      firestore.collection.mockReturnValue({})
-      firestore.getDocs.mockResolvedValue({
-        docs: mockFamilies.map((fam) => ({
-          id: fam.id,
-          data: () => ({ name: fam.name, rates: fam.rates }),
-        })),
-      })
-
-      const families = await getFamilies('userId123')
-
-      expect(families).toHaveLength(2)
-      expect(firestore.getDocs).toHaveBeenCalled()
-    })
+  it('addFamily requires name', async () => {
+    await expect(addFamily('u1', { name: '   ' })).rejects.toThrow('Family name is required')
   })
 
-  describe('updateFamily', () => {
-    it('should throw error for empty name update', async () => {
-      await expect(
-        updateFamily('userId123', 'fam123', { name: '' })
-      ).rejects.toThrow('Family name is required')
+  it('addFamily stores metadata', async () => {
+    firestore.collection.mockReturnValue({})
+    firestore.addDoc.mockResolvedValue({ id: 'fam123' })
+
+    const familyId = await addFamily('u1', {
+      name: 'Smith Family',
+      contactName: 'Jordan',
+      phone: '555',
+      notes: 'Notes',
     })
 
-    it('should throw error for invalid rates update', async () => {
-      await expect(
-        updateFamily('userId123', 'fam123', { rates: {} })
-      ).rejects.toThrow('At least one rate must be configured')
-    })
-
-    it('should update family with valid data', async () => {
-      firestore.doc.mockReturnValue({})
-      firestore.updateDoc.mockResolvedValue()
-
-      await updateFamily('userId123', 'fam123', {
-        name: 'Updated Family',
-        rates: { 1: 30 },
-      })
-
-      expect(firestore.updateDoc).toHaveBeenCalled()
-    })
+    expect(familyId).toBe('fam123')
+    expect(firestore.addDoc).toHaveBeenCalled()
+    const payload = firestore.addDoc.mock.calls[0][1]
+    expect(payload.name).toBe('Smith Family')
+    expect(payload.contactName).toBe('Jordan')
   })
 
-  describe('deleteFamily', () => {
-    it('should delete family', async () => {
-      firestore.doc.mockReturnValue({})
-      firestore.deleteDoc.mockResolvedValue()
-
-      await deleteFamily('userId123', 'fam123')
-
-      expect(firestore.deleteDoc).toHaveBeenCalled()
+  it('getFamilies returns mapped docs', async () => {
+    firestore.collection.mockReturnValue({})
+    firestore.getDocs.mockResolvedValue({
+      docs: [
+        { id: 'f1', data: () => ({ name: 'A' }) },
+        { id: 'f2', data: () => ({ name: 'B' }) },
+      ],
     })
+
+    const rows = await getFamilies('u1')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].id).toBe('f1')
+  })
+
+  it('updateFamily requires non-empty name if provided', async () => {
+    await expect(updateFamily('u1', 'f1', { name: '' })).rejects.toThrow('Family name is required')
+  })
+
+  it('updateFamily updates metadata', async () => {
+    firestore.doc.mockReturnValue({})
+    firestore.updateDoc.mockResolvedValue()
+
+    await updateFamily('u1', 'f1', {
+      name: 'Updated',
+      phone: '999',
+      isActive: false,
+    })
+
+    expect(firestore.updateDoc).toHaveBeenCalled()
+    const payload = firestore.updateDoc.mock.calls[0][1]
+    expect(payload.name).toBe('Updated')
+    expect(payload.phone).toBe('999')
+    expect(payload.isActive).toBe(false)
+  })
+
+  it('deleteFamily blocks when active children exist', async () => {
+    firestore.collection.mockReturnValue({})
+    firestore.getDocs.mockResolvedValue({
+      docs: [{ data: () => ({ familyId: 'f1', isActive: true }) }],
+    })
+
+    await expect(deleteFamily('u1', 'f1')).rejects.toThrow('Cannot delete family with active children')
+  })
+
+  it('deleteFamily deletes when no active children', async () => {
+    firestore.collection.mockReturnValue({})
+    firestore.getDocs.mockResolvedValue({ docs: [] })
+    firestore.doc.mockReturnValue({})
+    firestore.deleteDoc.mockResolvedValue()
+
+    await deleteFamily('u1', 'f1')
+    expect(firestore.deleteDoc).toHaveBeenCalled()
   })
 })

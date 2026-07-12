@@ -1,3 +1,5 @@
+import { fromCents } from '../utils/money'
+
 /**
  * Group time entries by family
  * @param {Array} entries - Array of time entry objects
@@ -97,6 +99,104 @@ export function generateMonthlySummary(entries, familiesData = []) {
     byFamily,
     grandTotals,
   };
+}
+
+export function generateSummaryFromPayroll(runOutput, familiesData = []) {
+  if (!runOutput) {
+    return {
+      byFamily: [],
+      grandTotals: { totalHours: 0, totalEarned: 0 },
+      flags: [],
+    }
+  }
+
+  const familyMap = familiesData.reduce((acc, family) => {
+    acc[family.id] = family.name
+    return acc
+  }, {})
+
+  const byFamily = Object.entries(runOutput.byFamily || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([familyId, data]) => ({
+      familyId,
+      familyName: familyMap[familyId] || 'Unknown Family',
+      totalHours: data.hours || 0,
+      segmentTotal: fromCents(data.segmentTotalCents || 0),
+      lunchFees: fromCents(data.lunchFeeCents || 0),
+      totalEarned: fromCents(data.finalTotalCents || 0),
+    }))
+
+  return {
+    byFamily,
+    grandTotals: {
+      totalHours: runOutput.totals?.grandHours || 0,
+      totalEarned: fromCents(runOutput.totals?.grandTotalCents || 0),
+    },
+    flags: runOutput.flags || [],
+  }
+}
+
+export function buildDailyBreakdownRows(attendance, payrollLedger, children = []) {
+  const childMap = children.reduce((acc, child) => {
+    acc[child.id] = child
+    return acc
+  }, {})
+
+  const ledgerByDate = (payrollLedger || []).reduce((acc, row) => {
+    if (!acc[row.date]) {
+      acc[row.date] = []
+    }
+    acc[row.date].push(row)
+    return acc
+  }, {})
+
+  return (attendance || [])
+    .map((entry) => {
+      const child = childMap[entry.childId]
+      const dayRows = ledgerByDate[entry.date] || []
+      const charge = dayRows.reduce((sum, row) => {
+        if (!row.activeChildIds?.includes(entry.childId)) {
+          return sum
+        }
+
+        const familyIds = Object.keys(row.familyFinalTotals || {})
+        if (familyIds.length === 0) {
+          return sum
+        }
+
+        const familyId = entry.familyId
+        const familyTotal = row.familyFinalTotals?.[familyId] || 0
+        const familyChildren = row.activeChildIds.filter(
+          (childId) => childMap[childId]?.familyId === familyId
+        )
+        if (familyChildren.length === 0) {
+          return sum
+        }
+
+        return sum + familyTotal / familyChildren.length
+      }, 0)
+
+      return {
+        id: entry.id,
+        familyId: entry.familyId,
+        childId: entry.childId,
+        childName: child?.displayName || child?.firstName || 'Unknown Child',
+        date: entry.date,
+        startTime: entry.startTime,
+        endTime: entry.endTime,
+        lunchBrought: Boolean(entry.lunchBrought),
+        amount: fromCents(Math.round(charge)),
+      }
+    })
+    .sort((a, b) => {
+      if (a.date !== b.date) {
+        return b.date.localeCompare(a.date)
+      }
+      if (a.startTime !== b.startTime) {
+        return a.startTime.localeCompare(b.startTime)
+      }
+      return a.childName.localeCompare(b.childName)
+    })
 }
 
 /**
