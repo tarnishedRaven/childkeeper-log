@@ -240,6 +240,54 @@ function isoToLocalHHMM(isoString) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+export function buildGeneralInvoiceChildSummaries(segmentLedger = [], childrenById = {}, familyId, childTotals = {}) {
+  const childSummaries = Object.entries(childTotals)
+    .filter(([childId, totalCents]) => childrenById[childId]?.familyId === familyId && totalCents > 0)
+    .reduce((acc, [childId, totalCents]) => {
+      const child = childrenById[childId]
+      acc[childId] = {
+        childId,
+        childName: child?.displayName || child?.firstName || 'Unknown Child',
+        hours: 0,
+        amount: fromCents(totalCents),
+      }
+      return acc
+    }, {})
+
+  for (const row of segmentLedger) {
+    const familySegmentTotal = row.familySegmentTotals?.[familyId]
+    if (familySegmentTotal == null) {
+      continue
+    }
+
+    const segmentHours = (new Date(row.segmentEnd) - new Date(row.segmentStart)) / (1000 * 60 * 60)
+    for (const childId of row.activeChildIds || []) {
+      if (childrenById[childId]?.familyId !== familyId) {
+        continue
+      }
+
+      if (!childSummaries[childId]) {
+        const child = childrenById[childId]
+        childSummaries[childId] = {
+          childId,
+          childName: child?.displayName || child?.firstName || 'Unknown Child',
+          hours: 0,
+          amount: 0,
+        }
+      }
+
+      childSummaries[childId].hours += segmentHours
+    }
+  }
+
+  return Object.values(childSummaries)
+    .map((child) => ({
+      ...child,
+      hours: Math.round(child.hours * 100) / 100,
+    }))
+    .sort((a, b) => a.childName.localeCompare(b.childName))
+}
+
 export async function getGeneralInvoice(userId, familyId, startDate, endDate) {
   // Run payroll over ALL attendance so tier rates correctly reflect concurrent children
   // across all families, then extract the requested family's share.
@@ -254,7 +302,7 @@ export async function getGeneralInvoice(userId, familyId, startDate, endDate) {
   const data = payroll.byFamily[familyId]
 
   if (!data) {
-    return { hours: 0, segmentTotal: 0, lunchFees: 0, grandTotal: 0, flags: payroll.flags }
+    return { hours: 0, segmentTotal: 0, lunchFees: 0, grandTotal: 0, children: [], flags: payroll.flags }
   }
 
   return {
@@ -262,6 +310,7 @@ export async function getGeneralInvoice(userId, familyId, startDate, endDate) {
     segmentTotal: fromCents(data.segmentTotalCents),
     lunchFees: fromCents(data.lunchFeeCents),
     grandTotal: fromCents(data.finalTotalCents),
+    children: buildGeneralInvoiceChildSummaries(payroll.segmentLedger, childrenById, familyId, payroll.childTotals),
     flags: payroll.flags,
   }
 }

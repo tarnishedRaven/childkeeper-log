@@ -4,6 +4,7 @@ import {
   groupByDate,
   calculateTotals,
   generateMonthlySummary,
+  buildGeneralInvoiceChildSummaries,
   formatCurrency,
   formatHours,
 } from './reportService'
@@ -126,6 +127,73 @@ describe('Report Service', () => {
       expect(summary.byFamily).toEqual([])
       expect(summary.grandTotals.totalHours).toBe(0)
       expect(summary.grandTotals.totalEarned).toBe(0)
+    })
+  })
+
+  describe('buildGeneralInvoiceChildSummaries', () => {
+    it('aggregates hours and total amounts per child for the selected family only', () => {
+      const childrenById = {
+        child1: { id: 'child1', familyId: 'fam1', displayName: 'Ava Smith' },
+        child2: { id: 'child2', familyId: 'fam1', displayName: 'Ben Smith' },
+        child3: { id: 'child3', familyId: 'fam2', displayName: 'Cara Jones' },
+      }
+
+      const childTotals = {
+        child1: 3500,
+        child2: 2000,
+        child3: 3000,
+      }
+
+      const segmentLedger = [
+        {
+          segmentStart: '2024-06-01T09:00:00.000Z',
+          segmentEnd: '2024-06-01T11:00:00.000Z',
+          activeChildIds: ['child1', 'child2'],
+          familySegmentTotals: { fam1: 4000 },
+        },
+        {
+          segmentStart: '2024-06-01T11:00:00.000Z',
+          segmentEnd: '2024-06-01T12:30:00.000Z',
+          activeChildIds: ['child1', 'child3'],
+          familySegmentTotals: { fam1: 3000, fam2: 3000 },
+        },
+      ]
+
+      expect(buildGeneralInvoiceChildSummaries(segmentLedger, childrenById, 'fam1', childTotals)).toEqual([
+        { childId: 'child1', childName: 'Ava Smith', hours: 3.5, amount: 35 },
+        { childId: 'child2', childName: 'Ben Smith', hours: 2, amount: 20 },
+      ])
+    })
+
+    it('includes lunch-only children with zero hours when they still have charges', () => {
+      const childrenById = {
+        child1: { id: 'child1', familyId: 'fam1', displayName: 'Ava Smith' },
+      }
+
+      const childTotals = {
+        child1: 1200,
+      }
+
+      expect(buildGeneralInvoiceChildSummaries([], childrenById, 'fam1', childTotals)).toEqual([
+        { childId: 'child1', childName: 'Ava Smith', hours: 0, amount: 12 },
+      ])
+    })
+
+    it('returns an empty list when the family has no child totals', () => {
+      const childrenById = {
+        child1: { id: 'child1', familyId: 'fam1', displayName: 'Ava Smith' },
+      }
+
+      const segmentLedger = [
+        {
+          segmentStart: '2024-06-01T09:00:00.000Z',
+          segmentEnd: '2024-06-01T10:00:00.000Z',
+          activeChildIds: ['child1'],
+          familySegmentTotals: { fam2: 2000 },
+        },
+      ]
+
+      expect(buildGeneralInvoiceChildSummaries(segmentLedger, childrenById, 'fam1', {})).toEqual([])
     })
   })
 

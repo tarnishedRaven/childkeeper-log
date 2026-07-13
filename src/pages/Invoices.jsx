@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import Navbar from '../components/Navbar'
 import { useAuth } from '../context/AuthContext'
 import { getFamilies } from '../services/familyService'
@@ -185,23 +185,59 @@ export default function Invoices() {
                       </thead>
                       <tbody>
                         {invoiceData.families.map(({ familyId, familyName, data }) => (
-                          <tr key={familyId} className="hover:bg-gray-50">
-                            {invoiceData.families.length > 1 && (
-                              <td className="border border-gray-300 px-4 py-2">{familyName}</td>
+                          <Fragment key={familyId}>
+                            <tr className="hover:bg-gray-50">
+                              {invoiceData.families.length > 1 && (
+                                <td className="border border-gray-300 px-4 py-2 font-medium">{familyName}</td>
+                              )}
+                              <td className="border border-gray-300 px-4 py-2 text-center">
+                                {formatHours(data.hours)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">
+                                {formatCurrency(data.segmentTotal)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">
+                                {formatCurrency(data.lunchFees)}
+                              </td>
+                              <td className="border border-gray-300 px-4 py-2 text-right font-bold">
+                                {formatCurrency(data.grandTotal)}
+                              </td>
+                            </tr>
+                            {data.children?.length > 0 && (
+                              <tr className="bg-gray-50/60">
+                                <td
+                                  className="border border-gray-300 px-4 py-3"
+                                  colSpan={invoiceData.families.length > 1 ? 5 : 4}
+                                >
+                                  <div className="text-sm text-gray-700">
+                                    <p className="font-medium text-gray-900 mb-2 text-center">Included Children</p>
+                                    <table className="w-full border-collapse text-sm">
+                                      <thead>
+                                        <tr className="text-gray-600">
+                                          <th className="py-1 pr-4 text-left font-medium">Child</th>
+                                          <th className="py-1 px-4 text-center font-medium">Hours</th>
+                                          <th className="py-1 pl-4 text-right font-medium">Total</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {data.children.map((child) => (
+                                          <tr key={child.childId} className="border-t border-gray-200 first:border-t-0">
+                                            <td className="py-2 pr-4">{child.childName}</td>
+                                            <td className="py-2 px-4 text-center whitespace-nowrap">
+                                              {formatHours(child.hours)}
+                                            </td>
+                                            <td className="py-2 pl-4 text-right whitespace-nowrap font-medium">
+                                              {formatCurrency(child.amount)}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
+                              </tr>
                             )}
-                            <td className="border border-gray-300 px-4 py-2 text-center">
-                              {formatHours(data.hours)}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">
-                              {formatCurrency(data.segmentTotal)}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">
-                              {formatCurrency(data.lunchFees)}
-                            </td>
-                            <td className="border border-gray-300 px-4 py-2 text-right font-bold">
-                              {formatCurrency(data.grandTotal)}
-                            </td>
-                          </tr>
+                          </Fragment>
                         ))}
                       </tbody>
                       {invoiceData.families.length > 1 && (
