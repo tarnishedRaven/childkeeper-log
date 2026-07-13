@@ -109,6 +109,23 @@ export default function Invoices() {
   const invoiceHeaderContact = companyName && providerName ? providerName : ''
   const acknowledgementRecipient = companyName || providerName
 
+  const getNominalSplitRate = (row) => {
+    if (!row || row.type !== 'segment') {
+      return 0
+    }
+
+    if (!Number.isFinite(row.ratePerHour) || !Number.isFinite(row.childCount) || row.childCount <= 0) {
+      return 0
+    }
+
+    const familyChildCount = Array.isArray(row.childNames) ? row.childNames.length : 0
+    if (familyChildCount <= 0) {
+      return 0
+    }
+
+    return (row.ratePerHour * familyChildCount) / row.childCount
+  }
+
   return (
     <>
       <Navbar />
@@ -336,7 +353,7 @@ export default function Invoices() {
                             <th className="border border-gray-300 px-4 py-2 text-left">Children</th>
                             <th className="border border-gray-300 px-4 py-2 text-center">Total Children</th>
                             <th className="border border-gray-300 px-4 py-2 text-center">Rate/hr</th>
-                            <th className="border border-gray-300 px-4 py-2 text-center">Effective Rate</th>
+                            <th className="border border-gray-300 px-4 py-2 text-center">Nominal Rate</th>
                             <th className="border border-gray-300 px-4 py-2 text-right">Amount</th>
                           </tr>
                         </thead>
@@ -360,7 +377,7 @@ export default function Invoices() {
                                   {formatCurrency(row.ratePerHour)}/hr
                                 </td>
                                 <td className="border border-gray-300 px-4 py-2 text-center">
-                                  {formatCurrency(row.familyShare / row.hours)}/hr
+                                  {formatCurrency(getNominalSplitRate(row))}/hr
                                 </td>
                                 <td className="border border-gray-300 px-4 py-2 text-right">
                                   {formatCurrency(row.familyShare)}
