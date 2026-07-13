@@ -148,7 +148,7 @@ export default function Invoices() {
                 type="date"
                 value={dateRange.startDate}
                 onChange={(event) => setDateRange({ ...dateRange, startDate: event.target.value })}
-                className="w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
+                className="ios-compact-picker w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
               />
             </div>
             <div>
@@ -157,7 +157,7 @@ export default function Invoices() {
                 type="date"
                 value={dateRange.endDate}
                 onChange={(event) => setDateRange({ ...dateRange, endDate: event.target.value })}
-                className="w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
+                className="ios-compact-picker w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
               />
             </div>
           </div>

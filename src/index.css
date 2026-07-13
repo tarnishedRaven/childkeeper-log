@@ -14,6 +14,26 @@ body {
   color-scheme: dark;
 }
 
+.ios-compact-picker {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* iOS Safari gives date/time inputs an intrinsic size that can overflow grids. */
+@supports (-webkit-touch-callout: none) {
+  .ios-compact-picker {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .ios-compact-picker::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+
 .pdf-report {
   color-scheme: light;
 }

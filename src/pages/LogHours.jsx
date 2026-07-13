@@ -366,7 +366,7 @@ export default function LogHours() {
                     required
                     value={formData.date}
                     onChange={(event) => setFormData((prev) => ({ ...prev, date: event.target.value }))}
-                    className="w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
+                    className="ios-compact-picker w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                   />
                 </div>
 
@@ -377,14 +377,14 @@ export default function LogHours() {
                       required
                       value={formData.childTimesById[editingChildId]?.startTime || formData.startTime}
                       onChange={(event) => updateChildTime(editingChildId, 'startTime', event.target.value)}
-                      className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
+                      className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                     />
                     <input
                       type="time"
                       required
                       value={formData.childTimesById[editingChildId]?.endTime || formData.endTime}
                       onChange={(event) => updateChildTime(editingChildId, 'endTime', event.target.value)}
-                      className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
+                      className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                     />
                   </div>
                 ) : (
@@ -402,14 +402,14 @@ export default function LogHours() {
                               required
                               value={formData.childTimesById[childId]?.startTime || formData.startTime}
                               onChange={(event) => updateChildTime(childId, 'startTime', event.target.value)}
-                              className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
+                              className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
                             />
                             <input
                               type="time"
                               required
                               value={formData.childTimesById[childId]?.endTime || formData.endTime}
                               onChange={(event) => updateChildTime(childId, 'endTime', event.target.value)}
-                              className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
+                              className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
                             />
                           </div>
                         </div>
