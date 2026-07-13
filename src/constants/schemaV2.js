@@ -28,6 +28,8 @@ export const PAYROLL_FLAG_TYPES = {
 export const DEFAULT_CURRENCY = 'USD'
 
 export const DEFAULT_GLOBAL_RATES = {
+  providerName: '',
+  companyName: '',
   minNannyHourlyRate: 16,
   maxNannyHourlyRate: 40,
   hourlyRateByChildCount: {

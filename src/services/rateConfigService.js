@@ -13,20 +13,26 @@ export function validateGlobalRates(config) {
     throw new Error('Global rates config is required')
   }
 
+  const providerName = String(config.providerName ?? '').trim()
+  const companyName = String(config.companyName ?? '').trim()
   const minNannyHourlyRate = Number(config.minNannyHourlyRate)
   const maxNannyHourlyRate = Number(config.maxNannyHourlyRate)
   const lunchFeePerChild = Number(config.lunchFeePerChild)
 
+  if (providerName.length < 2) {
+    throw new Error('Provider name must be at least 2 characters')
+  }
+
   if (!Number.isFinite(minNannyHourlyRate) || minNannyHourlyRate <= 0) {
-    throw new Error('Minimum nanny hourly rate must be positive')
+    throw new Error('Minimum hourly rate must be positive')
   }
 
   if (!Number.isFinite(maxNannyHourlyRate) || maxNannyHourlyRate <= 0) {
-    throw new Error('Maximum nanny hourly rate must be positive')
+    throw new Error('Maximum hourly rate must be positive')
   }
 
   if (minNannyHourlyRate > maxNannyHourlyRate) {
-    throw new Error('Minimum nanny hourly rate cannot exceed maximum nanny hourly rate')
+    throw new Error('Minimum hourly rate cannot exceed maximum hourly rate')
   }
 
   if (!Number.isFinite(lunchFeePerChild) || lunchFeePerChild < 0) {
@@ -36,11 +42,17 @@ export function validateGlobalRates(config) {
   const tiers = normalizeTierMap(config.hourlyRateByChildCount)
   Object.values(tiers).forEach((value) => {
     if (value > maxNannyHourlyRate) {
-      throw new Error('Tier rates cannot exceed maximum nanny hourly rate')
+      throw new Error('Tier rates cannot exceed maximum hourly rate')
+    }
+
+    if (value < minNannyHourlyRate) {
+      throw new Error('Tier rates cannot be less than minimum hourly rate')
     }
   })
 
   return {
+    providerName,
+    companyName,
     minNannyHourlyRate,
     maxNannyHourlyRate,
     lunchFeePerChild,

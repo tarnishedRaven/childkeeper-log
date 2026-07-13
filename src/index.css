@@ -13,3 +13,30 @@ body {
   color: #FFFFFF;
   color-scheme: dark;
 }
+
+.pdf-report {
+  color-scheme: light;
+}
+
+.pdf-page-break-before {
+  break-before: page;
+  page-break-before: always;
+}
+
+.pdf-avoid-break {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.pdf-table thead {
+  display: table-header-group;
+}
+
+.pdf-table tfoot {
+  display: table-footer-group;
+}
+
+.pdf-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}

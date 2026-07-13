@@ -24,6 +24,8 @@ const defaultChildForm = {
 }
 
 const defaultHourlyRatesForm = {
+  providerName: '',
+  companyName: '',
   minNannyHourlyRate: '',
   maxNannyHourlyRate: '',
   lunchFeePerChild: '',
@@ -33,6 +35,8 @@ const defaultHourlyRatesForm = {
 }
 
 const toHourlyRatesForm = (savedRates) => ({
+  providerName: String(savedRates?.providerName ?? ''),
+  companyName: String(savedRates?.companyName ?? ''),
   minNannyHourlyRate: String(savedRates?.minNannyHourlyRate ?? ''),
   maxNannyHourlyRate: String(savedRates?.maxNannyHourlyRate ?? ''),
   lunchFeePerChild: String(savedRates?.lunchFeePerChild ?? ''),
@@ -298,6 +302,8 @@ export default function Families() {
 
       await updateGlobalRates(user.uid, {
         ...rates,
+        providerName: hourlyRatesForm.providerName,
+        companyName: hourlyRatesForm.companyName,
         minNannyHourlyRate: Number(hourlyRatesForm.minNannyHourlyRate),
         maxNannyHourlyRate: Number(hourlyRatesForm.maxNannyHourlyRate),
         lunchFeePerChild: Number(hourlyRatesForm.lunchFeePerChild),
@@ -518,6 +524,38 @@ export default function Families() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="col-span-2">
+                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">
+                          Provider Name <span className="text-figma-error">*</span>
+                        </label>
+                        <input
+                          required
+                          value={hourlyRatesForm.providerName}
+                          onChange={(event) =>
+                            setHourlyRatesForm((prev) => ({ ...prev, providerName: event.target.value }))
+                          }
+                          className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                          placeholder="e.g. Jamie Carter"
+                        />
+                        <p className="mt-1 text-xs text-figma-text-secondary">
+                          Used on invoices and receipts.
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">
+                          Company Name (Optional)
+                        </label>
+                        <input
+                          value={hourlyRatesForm.companyName}
+                          onChange={(event) =>
+                            setHourlyRatesForm((prev) => ({ ...prev, companyName: event.target.value }))
+                          }
+                          className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                          placeholder="e.g. Carter Childcare LLC"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="col-span-2">
                         <label className="block text-sm font-medium text-figma-text-secondary mb-1">Lunch Fee Per Child</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#beff8b]">$</span>
@@ -535,7 +573,7 @@ export default function Families() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">Minimum Nanny Hourly Rate</label>
+                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">Minimum Hourly Rate</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#beff8b]">$</span>
                           <input
@@ -550,7 +588,7 @@ export default function Families() {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">Maximum Nanny Hourly Rate</label>
+                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">Maximum Hourly Rate</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#beff8b]">$</span>
                           <input
@@ -606,11 +644,21 @@ export default function Families() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <p className="text-sm text-figma-text-secondary">Minimum Nanny Hourly Rate</p>
+                        <p className="text-sm text-figma-text-secondary">Provider Name</p>
+                        <p className="text-white">{String(rates.providerName || '').trim() || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-figma-text-secondary">Company Name</p>
+                        <p className="text-white">{String(rates.companyName || '').trim() || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-sm text-figma-text-secondary">Minimum Hourly Rate</p>
                         <p className="text-white">${Number(rates.minNannyHourlyRate || 0).toFixed(2)}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-figma-text-secondary">Maximum Nanny Hourly Rate</p>
+                        <p className="text-sm text-figma-text-secondary">Maximum Hourly Rate</p>
                         <p className="text-white">${Number(rates.maxNannyHourlyRate || 0).toFixed(2)}</p>
                       </div>
                     </div>
