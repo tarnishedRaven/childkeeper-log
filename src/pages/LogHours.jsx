@@ -329,7 +329,7 @@ export default function LogHours() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-figma-text-secondary mb-1">Children</label>
-                  <div className="max-h-40 overflow-auto space-y-2 bg-figma-elevated border border-figma-border rounded-md p-3">
+                  <div className="space-y-2 bg-figma-elevated border border-figma-border rounded-md p-3">
                     {children.length === 0 ? (
                       <p className="text-sm text-figma-text-placeholder">No children available</p>
                     ) : (
@@ -366,25 +366,25 @@ export default function LogHours() {
                     required
                     value={formData.date}
                     onChange={(event) => setFormData((prev) => ({ ...prev, date: event.target.value }))}
-                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                    className="w-full min-w-0 px-2.5 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                   />
                 </div>
 
                 {editingEntryId ? (
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 min-w-0">
                     <input
                       type="time"
                       required
                       value={formData.childTimesById[editingChildId]?.startTime || formData.startTime}
                       onChange={(event) => updateChildTime(editingChildId, 'startTime', event.target.value)}
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                      className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                     />
                     <input
                       type="time"
                       required
                       value={formData.childTimesById[editingChildId]?.endTime || formData.endTime}
                       onChange={(event) => updateChildTime(editingChildId, 'endTime', event.target.value)}
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                      className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-elevated text-white rounded-md"
                     />
                   </div>
                 ) : (
@@ -396,20 +396,20 @@ export default function LogHours() {
                       formData.selectedChildIds.map((childId) => (
                         <div key={childId} className="bg-figma-elevated border border-figma-border rounded-md p-3 space-y-2">
                           <p className="text-sm text-white">{childNameById[childId] || 'Unknown Child'}</p>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-2 gap-2 min-w-0">
                             <input
                               type="time"
                               required
                               value={formData.childTimesById[childId]?.startTime || formData.startTime}
                               onChange={(event) => updateChildTime(childId, 'startTime', event.target.value)}
-                              className="w-full px-3 py-2 border border-figma-border bg-figma-surface text-white rounded-md"
+                              className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
                             />
                             <input
                               type="time"
                               required
                               value={formData.childTimesById[childId]?.endTime || formData.endTime}
                               onChange={(event) => updateChildTime(childId, 'endTime', event.target.value)}
-                              className="w-full px-3 py-2 border border-figma-border bg-figma-surface text-white rounded-md"
+                              className="w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md"
                             />
                           </div>
                         </div>
