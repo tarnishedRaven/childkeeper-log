@@ -314,7 +314,7 @@ export default function FamilyLogs() {
                     <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Date</th>
                     <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Child</th>
                     <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Time</th>
-                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Lunch</th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Home Lunch</th>
                     <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Notes</th>
                     <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
                   </tr>
@@ -337,7 +337,7 @@ export default function FamilyLogs() {
                           {entry.startTime} - {entry.endTime}
                         </td>
                         <td className="border border-figma-border px-4 py-2 text-center text-white">
-                          {entry.lunchBrought ? 'Home' : 'Fee'}
+                          {entry.lunchBrought ? 'Yes' : 'No'}
                         </td>
                         <td className="border border-figma-border px-4 py-2 text-white">{entry.notes || '-'}</td>
                         <td className="border border-figma-border px-4 py-2 text-center">

@@ -454,7 +454,7 @@ export default function LogHours() {
                         <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Family</th>
                         <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Child</th>
                         <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Time</th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Lunch?</th>
+                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Home Lunch</th>
                         <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
                       </tr>
                     </thead>
