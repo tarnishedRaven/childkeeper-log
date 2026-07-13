@@ -89,5 +89,40 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) {
+            return
+          }
+
+          if (id.includes('/node_modules/jspdf/')) {
+            return 'vendor-jspdf'
+          }
+
+          if (id.includes('/node_modules/html2canvas/')) {
+            return 'vendor-html2canvas'
+          }
+
+          if (id.includes('/node_modules/dompurify/')) {
+            return 'vendor-dompurify'
+          }
+
+          if (id.includes('/node_modules/firebase/firestore/')) {
+            return 'vendor-firebase-firestore'
+          }
+
+          if (id.includes('/node_modules/firebase/auth/')) {
+            return 'vendor-firebase-auth'
+          }
+
+          if (id.includes('/node_modules/firebase/app/')) {
+            return 'vendor-firebase-app'
+          }
+        }
+      }
+    }
   }
 })

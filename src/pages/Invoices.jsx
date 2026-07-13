@@ -10,7 +10,6 @@ import {
 } from '../services/reportService'
 import { getGlobalRates } from '../services/rateConfigService'
 import { formatDisplayDate, formatTime12Hour } from '../utils/timeFormatting'
-import { exportElementToPdf, generateReportPdfFilename } from '../services/pdfService'
 
 export default function Invoices() {
   const { user } = useAuth()
@@ -85,6 +84,7 @@ export default function Invoices() {
   const handleExportPdf = async () => {
     try {
       if (reportRef.current) {
+        const { exportElementToPdf, generateReportPdfFilename } = await import('../services/pdfService')
         const filename = generateReportPdfFilename(
           dateRange.startDate,
           dateRange.endDate,

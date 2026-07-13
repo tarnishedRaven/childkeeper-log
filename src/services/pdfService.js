@@ -1,5 +1,17 @@
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+let pdfModulesPromise = null;
+
+async function loadPdfModules() {
+  if (!pdfModulesPromise) {
+    pdfModulesPromise = Promise.all([import("jspdf"), import("html2canvas")]).then(
+      ([jsPdfModule, html2canvasModule]) => ({
+        jsPDF: jsPdfModule.default,
+        html2canvas: html2canvasModule.default,
+      }),
+    );
+  }
+
+  return pdfModulesPromise;
+}
 
 function toScaledTop(root, node, scaleY) {
   if (!root || !node) {
@@ -101,6 +113,7 @@ export async function exportElementToPdf(element, filename) {
   }
 
   try {
+    const { jsPDF, html2canvas } = await loadPdfModules();
     const canvas = await html2canvas(element, {
       scale: 2,
       useCORS: true,
