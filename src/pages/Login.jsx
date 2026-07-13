@@ -89,7 +89,15 @@ export default function Login() {
             </button>
           </div>
 
-          <div className="text-center">
+          <div className="text-center space-y-2">
+            <p className="text-sm text-figma-text-secondary">
+              <Link
+                to="/forgot-password"
+                className="font-medium text-figma-accent hover:text-figma-accent-hover"
+              >
+                Forgot your password?
+              </Link>
+            </p>
             <p className="text-sm text-figma-text-secondary">
               Don't have an account?{" "}
               <Link

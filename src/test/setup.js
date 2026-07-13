@@ -11,6 +11,7 @@ vi.mock('firebase/auth', () => ({
   signInWithEmailAndPassword: vi.fn(),
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
+  sendPasswordResetEmail: vi.fn(),
 }))
 
 vi.mock('firebase/firestore', () => ({

@@ -7,6 +7,7 @@ import InstallAppPrompt from './components/InstallAppPrompt'
 
 const Login = lazy(() => import('./pages/Login'))
 const Signup = lazy(() => import('./pages/Signup'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Families = lazy(() => import('./pages/Families'))
 const FamilyLogs = lazy(() => import('./pages/FamilyLogs'))
@@ -21,6 +22,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
             <Route
               path="/dashboard"
