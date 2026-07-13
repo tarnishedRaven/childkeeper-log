@@ -1,6 +1,6 @@
 # The Childkeeper's Log
 
-A whimsical web app for tracking childcare work hours, managing family rates, and generating monthly reports.
+A whimsical web app for tracking childcare work hours, managing family rates, and generating monthly invoices.
 
 ## Features
 
@@ -119,7 +119,7 @@ Your app will be live at `https://your-project.web.app`
 1. **Sign Up**: Create a new account with email and password
 2. **Add Families**: Go to Families page and add each family with rates for 1, 2, 3 children
 3. **Log Hours**: Click "Log Hours" to record start/end times. Earnings calculated automatically
-4. **Generate Reports**: View Reports page, select date range, and export monthly summary as PDF
+4. **Generate Invoices**: View Invoices page, select date range, and export monthly summary as PDF
 
 ## Project Structure
 
@@ -127,7 +127,7 @@ Your app will be live at `https://your-project.web.app`
 src/
 ├── context/          # Auth context for user state
 ├── services/         # Business logic (families, time entries, reports, PDF)
-├── pages/            # Page components (Dashboard, Families, LogHours, Reports)
+├── pages/            # Page components (Dashboard, Families, LogHours, Invoices)
 ├── components/       # Reusable components (Navbar, ProtectedRoute)
 ├── test/             # Test setup and utilities
 ├── App.jsx           # Main app with routing

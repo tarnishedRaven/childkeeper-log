@@ -24,7 +24,7 @@ export default function Navbar() {
     { path: "/dashboard", label: "Dashboard" },
     { path: "/families", label: "Families" },
     { path: "/log-hours", label: "Log Hours" },
-    { path: "/reports", label: "Reports" },
+    { path: "/invoices", label: "Invoices" },
   ];
 
   return (

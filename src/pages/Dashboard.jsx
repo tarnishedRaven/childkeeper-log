@@ -15,7 +15,7 @@ export default function Dashboard() {
             Welcome to The Childkeeper's Log
           </h1>
           <p className="text-lg text-figma-text-secondary mb-8">
-            Track your hours, manage families, and generate reports
+            Track your hours, manage families, and generate invoices
             effortlessly.
           </p>
 
@@ -52,16 +52,16 @@ export default function Dashboard() {
 
             <div className="bg-[#b0b1fe] rounded-lg p-6">
               <h2 className="text-xl font-semibold text-figma-bg mb-2">
-                Reports
+                Invoices
               </h2>
               <p className="text-figma-bg mb-4">
-                Generate summaries and export monthly reports as PDF.
+                Generate summaries and export monthly invoices as PDF.
               </p>
               <a
-                href="/reports"
+                href="/invoices"
                 className="inline-block px-4 py-2 bg-[#beff8b] text-figma-bg rounded hover:opacity-90 transition"
               >
-                View Reports
+                View Invoices
               </a>
             </div>
           </div>
@@ -74,7 +74,7 @@ export default function Dashboard() {
               <li>Add families and children</li>
               <li>Set global payroll rates</li>
               <li>Log attendance for each child</li>
-              <li>Generate payroll reports and export PDF</li>
+              <li>Generate payroll invoices and export PDF</li>
             </ol>
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
 } from '../services/attendanceService'
 import SyncStatusBanner from '../components/SyncStatusBanner'
 import useConnectivityStatus from '../hooks/useConnectivityStatus'
+import { formatDisplayDate, formatTime12Hour } from '../utils/timeFormatting'
 
 function todayIsoDate() {
   return new Date().toISOString().split('T')[0]
@@ -453,7 +454,7 @@ export default function LogHours() {
                         <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Family</th>
                         <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Child</th>
                         <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Time</th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Lunch</th>
+                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Lunch?</th>
                         <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
                       </tr>
                     </thead>
@@ -462,16 +463,16 @@ export default function LogHours() {
                         const family = families.find((row) => row.id === entry.familyId)
                         return (
                           <tr key={entry.id} className="hover:bg-figma-elevated">
-                            <td className="border border-figma-border px-4 py-2 text-white">{entry.date}</td>
+                            <td className="border border-figma-border px-4 py-2 text-white">{formatDisplayDate(entry.date)}</td>
                             <td className="border border-figma-border px-4 py-2 text-white">{family?.name || 'Unknown'}</td>
                             <td className="border border-figma-border px-4 py-2 text-white">
                               {childNameById[entry.childId] || 'Unknown Child'}
                             </td>
                             <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {entry.startTime} - {entry.endTime}
+                              {formatTime12Hour(entry.startTime)} - {formatTime12Hour(entry.endTime)}
                             </td>
                             <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {entry.lunchBrought ? 'Home' : 'Fee'}
+                              {entry.lunchBrought ? 'Yes' : 'No'}
                             </td>
                             <td className="border border-figma-border px-4 py-2 text-center">
                               <button onClick={() => handleEdit(entry)} className="text-figma-accent hover:underline mr-3">
