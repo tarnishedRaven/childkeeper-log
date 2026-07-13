@@ -32,3 +32,6 @@ planning
 
 # OS
 .DS_Store
+
+# Firebase cache
+.firebase/hosting.*.cache
