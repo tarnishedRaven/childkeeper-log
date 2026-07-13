@@ -159,13 +159,14 @@ export function buildDailyBreakdownRows(attendance, payrollLedger, children = []
           return sum
         }
 
-        const familyIds = Object.keys(row.familyFinalTotals || {})
+        const familyTotalsBySegment = row.familySegmentTotals || row.familyFinalTotals || {}
+        const familyIds = Object.keys(familyTotalsBySegment)
         if (familyIds.length === 0) {
           return sum
         }
 
         const familyId = entry.familyId
-        const familyTotal = row.familyFinalTotals?.[familyId] || 0
+        const familyTotal = familyTotalsBySegment[familyId] || 0
         const familyChildren = row.activeChildIds.filter(
           (childId) => childMap[childId]?.familyId === familyId
         )

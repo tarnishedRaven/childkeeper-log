@@ -2,7 +2,6 @@ import { PAYROLL_FLAG_TYPES } from '../constants/schemaV2'
 import {
   roundToCents,
   splitCentsEvenly,
-  distributeProportionallyWithStableRemainder,
 } from './money'
 import {
   buildTimeBoundaries,
@@ -12,70 +11,6 @@ import {
 } from './timeIntervals'
 import { selectTierRate } from './rateSelection'
 import { detectSameChildOverlaps } from './attendanceValidation'
-
-function sumByFamily(childCentsByChildId, childrenById) {
-  return Object.entries(childCentsByChildId).reduce((acc, [childId, cents]) => {
-    const familyId = childrenById[childId]?.familyId
-    if (!familyId) {
-      return acc
-    }
-    acc[familyId] = (acc[familyId] || 0) + cents
-    return acc
-  }, {})
-}
-
-function splitFamilyTotalsToChildren(familyTotals, activeRecords) {
-  const childTotals = {}
-
-  const childrenByFamily = activeRecords.reduce((acc, record) => {
-    if (!acc[record.familyId]) {
-      acc[record.familyId] = []
-    }
-    acc[record.familyId].push(record.childId)
-    return acc
-  }, {})
-
-  Object.entries(childrenByFamily).forEach(([familyId, childIds]) => {
-    const uniqueChildIds = [...new Set(childIds)].sort((a, b) => String(a).localeCompare(String(b)))
-    const split = splitCentsEvenly(familyTotals[familyId] || 0, uniqueChildIds)
-    Object.entries(split).forEach(([childId, cents]) => {
-      childTotals[childId] = (childTotals[childId] || 0) + cents
-    })
-  })
-
-  return childTotals
-}
-
-function redistributeFamilyTotalsZeroSum(baseFamilyTotals, familyMinimumCents) {
-  const familyIds = Object.keys(baseFamilyTotals).sort((a, b) => a.localeCompare(b))
-
-  const deficits = familyIds.reduce((acc, familyId) => {
-    acc[familyId] = Math.max(0, (familyMinimumCents[familyId] || 0) - (baseFamilyTotals[familyId] || 0))
-    return acc
-  }, {})
-
-  const surpluses = familyIds.reduce((acc, familyId) => {
-    acc[familyId] = Math.max(0, (baseFamilyTotals[familyId] || 0) - (familyMinimumCents[familyId] || 0))
-    return acc
-  }, {})
-
-  const totalDeficit = Object.values(deficits).reduce((sum, cents) => sum + cents, 0)
-  const totalSurplus = Object.values(surpluses).reduce((sum, cents) => sum + cents, 0)
-  const transferableCents = Math.min(totalDeficit, totalSurplus)
-
-  const giveByFamily = distributeProportionallyWithStableRemainder(transferableCents, deficits)
-  const takeByFamily = distributeProportionallyWithStableRemainder(transferableCents, surpluses)
-
-  const familyFinalTotals = familyIds.reduce((acc, familyId) => {
-    acc[familyId] = (baseFamilyTotals[familyId] || 0) + (giveByFamily[familyId] || 0) - (takeByFamily[familyId] || 0)
-    return acc
-  }, {})
-
-  return {
-    familyFinalTotals,
-    unmetCents: totalDeficit - transferableCents,
-  }
-}
 
 export function runPayroll(attendanceList, childrenById, ratesConfig) {
   const validAttendance = (attendanceList || []).filter((entry) => entry.status !== 'deleted')
@@ -138,37 +73,16 @@ export function runPayroll(attendanceList, childrenById, ratesConfig) {
       )
 
       const segmentTotalCents = roundToCents(effectiveHourly * segmentHours)
-      const baseChildSplit = splitCentsEvenly(segmentTotalCents, uniqueChildIds)
-      const baseFamilyTotals = sumByFamily(baseChildSplit, childrenById)
+      const childSplit = splitCentsEvenly(segmentTotalCents, uniqueChildIds)
+      const familySegmentTotals = {}
 
-      const familyIds = Object.keys(baseFamilyTotals).sort((a, b) => a.localeCompare(b))
-      const familyMinimumCents = familyIds.reduce((acc, familyId) => {
-        acc[familyId] = roundToCents(ratesConfig.minFamilyHourlyRate * segmentHours)
-        return acc
-      }, {})
-
-      const { familyFinalTotals, unmetCents } = redistributeFamilyTotalsZeroSum(
-        baseFamilyTotals,
-        familyMinimumCents
-      )
-
-      if (unmetCents > 0) {
-        flags.push({
-          type: PAYROLL_FLAG_TYPES.UNMET_FAMILY_MINIMUM,
-          date,
-          segmentStart: segment.start.toISOString(),
-          segmentEnd: segment.end.toISOString(),
-          cents: unmetCents,
-        })
-      }
-
-      const childFinalSplit = splitFamilyTotalsToChildren(familyFinalTotals, active)
-      Object.entries(childFinalSplit).forEach(([childId, cents]) => {
+      Object.entries(childSplit).forEach(([childId, cents]) => {
         childTotals[childId] = (childTotals[childId] || 0) + cents
 
         const familyId = childrenById[childId]?.familyId
         if (familyId) {
           familyTotals[familyId] = (familyTotals[familyId] || 0) + cents
+          familySegmentTotals[familyId] = (familySegmentTotals[familyId] || 0) + cents
         }
       })
 
@@ -179,7 +93,7 @@ export function runPayroll(attendanceList, childrenById, ratesConfig) {
         activeChildIds: uniqueChildIds,
         effectiveHourly,
         segmentTotalCents,
-        familyFinalTotals,
+        familySegmentTotals,
       })
     })
 
@@ -209,7 +123,7 @@ export function runPayroll(attendanceList, childrenById, ratesConfig) {
     .reduce((acc, familyId) => {
       const familyHours = segmentLedger
         .reduce((sum, row) => {
-          const cents = row.familyFinalTotals[familyId] || 0
+          const cents = row.familySegmentTotals[familyId] || 0
           if (cents === 0) {
             return sum
           }

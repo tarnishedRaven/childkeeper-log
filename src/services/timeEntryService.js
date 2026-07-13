@@ -64,7 +64,7 @@ function toLegacyEntry(entry) {
 export async function addTimeEntry(userId, entryData) {
   const { familyId, childId, date, startTime, endTime, notes, hadLunch, lunchBrought } = entryData
   const rate = Number(entryData.rate)
-  const numChildren = Number(entryData.numChildren || 1)
+  const numChildren = Number(entryData.numChildren ?? 1)
 
   if (!familyId) throw new Error('Family ID is required')
   if (!date) throw new Error('Date is required')
@@ -100,7 +100,7 @@ export async function addTimeEntries(userId, entryRows) {
     lunchBrought: entryData.lunchBrought ?? entryData.hadLunch ?? false,
     notes: entryData.notes || '',
     rate: Number(entryData.rate || 0),
-    numChildren: Number(entryData.numChildren || 1),
+    numChildren: Number(entryData.numChildren ?? 1),
   }))
 
   return addAttendanceBatch(userId, payload)

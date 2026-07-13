@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
+import { deleteField, doc, getDoc, setDoc, Timestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 import {
   COLLECTIONS,
@@ -13,14 +13,9 @@ export function validateGlobalRates(config) {
     throw new Error('Global rates config is required')
   }
 
-  const minFamilyHourlyRate = Number(config.minFamilyHourlyRate)
   const minNannyHourlyRate = Number(config.minNannyHourlyRate)
   const maxNannyHourlyRate = Number(config.maxNannyHourlyRate)
   const lunchFeePerChild = Number(config.lunchFeePerChild)
-
-  if (!Number.isFinite(minFamilyHourlyRate) || minFamilyHourlyRate <= 0) {
-    throw new Error('Minimum family hourly rate must be positive')
-  }
 
   if (!Number.isFinite(minNannyHourlyRate) || minNannyHourlyRate <= 0) {
     throw new Error('Minimum nanny hourly rate must be positive')
@@ -46,7 +41,6 @@ export function validateGlobalRates(config) {
   })
 
   return {
-    minFamilyHourlyRate,
     minNannyHourlyRate,
     maxNannyHourlyRate,
     lunchFeePerChild,
@@ -98,6 +92,7 @@ export async function updateGlobalRates(userId, config) {
     ratesRef,
     {
       ...normalized,
+      minFamilyHourlyRate: deleteField(),
       updatedAt: Timestamp.now(),
     },
     { merge: true }

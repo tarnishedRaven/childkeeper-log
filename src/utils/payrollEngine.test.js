@@ -49,7 +49,6 @@ describe('payroll utilities', () => {
     }
 
     const rates = {
-      minFamilyHourlyRate: 12,
       minNannyHourlyRate: 18,
       maxNannyHourlyRate: 40,
       hourlyRateByChildCount: { 1: 16, 2: 16, 3: 20 },
@@ -62,7 +61,7 @@ describe('payroll utilities', () => {
     expect(result.totals.grandTotalCents).toBe(4100)
   })
 
-  it('runPayroll keeps segment totals zero-sum while redistributing to family minimums', () => {
+  it('runPayroll keeps deterministic family totals without family minimum redistribution', () => {
     const attendance = [
       {
         id: 'a_tudor',
@@ -106,7 +105,6 @@ describe('payroll utilities', () => {
     }
 
     const rates = {
-      minFamilyHourlyRate: 8,
       minNannyHourlyRate: 16,
       maxNannyHourlyRate: 40,
       hourlyRateByChildCount: { 1: 16, 2: 16, 3: 20, 4: 25, 5: 30, 6: 35, 7: 40 },
@@ -115,8 +113,8 @@ describe('payroll utilities', () => {
 
     const result = runPayroll(attendance, childrenById, rates)
 
-    expect(result.byFamily.fam_tudor.finalTotalCents).toBe(5600)
-    expect(result.byFamily.fam_smith.finalTotalCents).toBe(8000)
+    expect(result.byFamily.fam_tudor.finalTotalCents).toBe(5333)
+    expect(result.byFamily.fam_smith.finalTotalCents).toBe(8267)
     expect(result.totals.grandTotalCents).toBe(13600)
   })
 })

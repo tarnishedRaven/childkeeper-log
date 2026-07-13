@@ -24,7 +24,6 @@ const defaultChildForm = {
 }
 
 const defaultHourlyRatesForm = {
-  minFamilyHourlyRate: '',
   minNannyHourlyRate: '',
   maxNannyHourlyRate: '',
   lunchFeePerChild: '',
@@ -34,7 +33,6 @@ const defaultHourlyRatesForm = {
 }
 
 const toHourlyRatesForm = (savedRates) => ({
-  minFamilyHourlyRate: String(savedRates?.minFamilyHourlyRate ?? ''),
   minNannyHourlyRate: String(savedRates?.minNannyHourlyRate ?? ''),
   maxNannyHourlyRate: String(savedRates?.maxNannyHourlyRate ?? ''),
   lunchFeePerChild: String(savedRates?.lunchFeePerChild ?? ''),
@@ -300,7 +298,6 @@ export default function Families() {
 
       await updateGlobalRates(user.uid, {
         ...rates,
-        minFamilyHourlyRate: Number(hourlyRatesForm.minFamilyHourlyRate),
         minNannyHourlyRate: Number(hourlyRatesForm.minNannyHourlyRate),
         maxNannyHourlyRate: Number(hourlyRatesForm.maxNannyHourlyRate),
         lunchFeePerChild: Number(hourlyRatesForm.lunchFeePerChild),
@@ -520,22 +517,7 @@ export default function Families() {
                 isEditingRates ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-sm font-medium text-figma-text-secondary mb-1">Minimum Family Hourly Rate</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#beff8b]">$</span>
-                          <input
-                            type="number"
-                            value={hourlyRatesForm.minFamilyHourlyRate}
-                            onChange={(event) =>
-                              setHourlyRatesForm((prev) => ({ ...prev, minFamilyHourlyRate: event.target.value }))
-                            }
-                            className="w-full pl-8 pr-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
-                            placeholder="e.g. 12"
-                          />
-                        </div>
-                      </div>
-                      <div>
+                      <div className="col-span-2">
                         <label className="block text-sm font-medium text-figma-text-secondary mb-1">Lunch Fee Per Child</label>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#beff8b]">$</span>
@@ -618,10 +600,6 @@ export default function Families() {
                 ) : (
                   <div className="bg-figma-elevated rounded-lg border border-figma-border p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-figma-text-secondary">Minimum Family Hourly Rate</p>
-                        <p className="text-white font-semibold">${Number(rates.minFamilyHourlyRate || 0).toFixed(2)}</p>
-                      </div>
                       <button type="button" onClick={startRatesEdit} className="px-3 py-2 bg-figma-accent text-white rounded-md">
                         Edit
                       </button>

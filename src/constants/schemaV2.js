@@ -22,14 +22,12 @@ export const ATTENDANCE_SOURCE = {
 }
 
 export const PAYROLL_FLAG_TYPES = {
-  UNMET_FAMILY_MINIMUM: 'UNMET_FAMILY_MINIMUM',
   INVALID_DATA_SKIPPED: 'INVALID_DATA_SKIPPED',
 }
 
 export const DEFAULT_CURRENCY = 'USD'
 
 export const DEFAULT_GLOBAL_RATES = {
-  minFamilyHourlyRate: 8,
   minNannyHourlyRate: 16,
   maxNannyHourlyRate: 40,
   hourlyRateByChildCount: {
