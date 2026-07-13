@@ -15,7 +15,7 @@ export default function Dashboard() {
             Welcome to The Childkeeper's Log
           </h1>
           <p className="text-lg text-figma-text-secondary mb-8">
-            Track your hours, manage families, and generate reports
+            Track your hours, manage families, and generate invoices
             effortlessly.
           </p>
 
@@ -25,8 +25,7 @@ export default function Dashboard() {
                 Manage Families
               </h2>
               <p className="text-figma-bg mb-4">
-                Add families and set hourly rates based on the number of
-                children.
+                Add families, manage children, and maintain contact details.
               </p>
               <a
                 href="/families"
@@ -41,8 +40,7 @@ export default function Dashboard() {
                 Log Hours
               </h2>
               <p className="text-figma-bg mb-4">
-                Record your time with start and end times. Earnings are
-                calculated automatically.
+                Record per-child attendance intervals with lunch tracking.
               </p>
               <a
                 href="/log-hours"
@@ -54,16 +52,16 @@ export default function Dashboard() {
 
             <div className="bg-[#b0b1fe] rounded-lg p-6">
               <h2 className="text-xl font-semibold text-figma-bg mb-2">
-                Reports
+                Invoices
               </h2>
               <p className="text-figma-bg mb-4">
-                Generate summaries and export monthly reports as PDF.
+                Generate summaries and export monthly invoices as PDF.
               </p>
               <a
-                href="/reports"
+                href="/invoices"
                 className="inline-block px-4 py-2 bg-[#beff8b] text-figma-bg rounded hover:opacity-90 transition"
               >
-                View Reports
+                View Invoices
               </a>
             </div>
           </div>
@@ -73,10 +71,10 @@ export default function Dashboard() {
               Getting Started
             </h2>
             <ol className="list-decimal list-inside space-y-2 text-figma-text-secondary">
-              <li>Set up your families and configure rates for each</li>
-              <li>Log your hours whenever you complete a job</li>
-              <li>Review your entries anytime</li>
-              <li>Generate monthly reports for invoicing</li>
+              <li>Add families and children</li>
+              <li>Set global payroll rates</li>
+              <li>Log attendance for each child</li>
+              <li>Generate payroll invoices and export PDF</li>
             </ol>
           </div>
         </div>

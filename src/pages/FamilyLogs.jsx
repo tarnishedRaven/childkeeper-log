@@ -1,204 +1,159 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import Navbar from "../components/Navbar";
-import { useAuth } from "../context/AuthContext";
-import { getFamilies } from "../services/familyService";
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import Navbar from '../components/Navbar'
+import { useAuth } from '../context/AuthContext'
+import { getFamilies } from '../services/familyService'
+import { getChildren } from '../services/childService'
 import {
-  getTimeEntriesByFamily,
-  updateTimeEntry,
-  deleteTimeEntry,
-} from "../services/timeEntryService";
+  getAttendanceByFamilyDateRange,
+  updateAttendance,
+  deleteAttendance,
+} from '../services/attendanceService'
+
+function defaultDateRange() {
+  const endDate = new Date().toISOString().split('T')[0]
+  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split('T')[0]
+  return { startDate, endDate }
+}
 
 export default function FamilyLogs() {
-  const { user } = useAuth();
-  const { familyId } = useParams();
-  const navigate = useNavigate();
+  const { user } = useAuth()
+  const { familyId } = useParams()
+  const navigate = useNavigate()
 
-  const [family, setFamily] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [editingEntryId, setEditingEntryId] = useState(null);
+  const [family, setFamily] = useState(null)
+  const [children, setChildren] = useState([])
+  const [entries, setEntries] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [editingEntryId, setEditingEntryId] = useState(null)
   const [editForm, setEditForm] = useState({
-    date: "",
-    startTime: "09:00",
-    endTime: "12:00",
-    numChildren: 1,
-    rate: "",
-    notes: "",
-    hadLunch: false,
-  });
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-  });
-
-  const availableChildCounts = useMemo(() => {
-    if (!family || !family.rates) return [1];
-
-    const counts = Object.keys(family.rates)
-      .map(Number)
-      .filter((count) => Number.isInteger(count) && count > 0)
-      .sort((a, b) => a - b);
-
-    if (counts.length === 0) return [1];
-    if (editingEntryId && !counts.includes(editForm.numChildren)) {
-      return [...counts, editForm.numChildren].sort((a, b) => a - b);
-    }
-    return counts;
-  }, [family, editingEntryId, editForm.numChildren]);
+    childId: '',
+    date: '',
+    startTime: '09:00',
+    endTime: '12:00',
+    notes: '',
+    lunchBrought: true,
+  })
+  const [dateRange, setDateRange] = useState(defaultDateRange)
 
   useEffect(() => {
-    loadData();
-  }, [user, familyId, dateRange.startDate, dateRange.endDate]);
+    loadData()
+  }, [user, familyId, dateRange.startDate, dateRange.endDate])
 
   const loadData = async () => {
     try {
-      setLoading(true);
-      setError("");
+      setLoading(true)
+      setError('')
 
-      if (!user || !familyId) return;
+      if (!user || !familyId) return
 
-      const families = await getFamilies(user.uid);
-      const selectedFamily = families.find((f) => f.id === familyId);
+      const [families, familyChildren, familyEntries] = await Promise.all([
+        getFamilies(user.uid),
+        getChildren(user.uid, { familyId, activeOnly: true }),
+        getAttendanceByFamilyDateRange(user.uid, familyId, dateRange.startDate, dateRange.endDate),
+      ])
+
+      const selectedFamily = families.find((entry) => entry.id === familyId)
       if (!selectedFamily) {
-        setError("Family not found");
-        return;
+        setError('Family not found')
+        return
       }
 
-      setFamily(selectedFamily);
-
-      const familyEntries = await getTimeEntriesByFamily(
-        user.uid,
-        familyId,
-        dateRange.startDate,
-        dateRange.endDate,
-      );
-      setEntries(familyEntries);
+      setFamily(selectedFamily)
+      setChildren(familyChildren)
+      setEntries(familyEntries)
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const childNameById = useMemo(
+    () =>
+      children.reduce((acc, child) => {
+        acc[child.id] = child.displayName || child.firstName || 'Unknown Child'
+        return acc
+      }, {}),
+    [children]
+  )
 
   const startEdit = (entry) => {
-    setError("");
-    setSuccess("");
-    setEditingEntryId(entry.id);
-    
-    // If hadLunch was true when saved, the stored rate is the effective rate
-    // Recover the base rate by adding back the lunch discount (multiplied by children count)
-    let baseRate = entry.rate;
-    if (entry.hadLunch && family?.lunchDiscount) {
-      baseRate = entry.rate + (family.lunchDiscount * entry.numChildren);
-    }
-    
+    setError('')
+    setSuccess('')
+    setEditingEntryId(entry.id)
     setEditForm({
+      childId: entry.childId,
       date: entry.date,
       startTime: entry.startTime,
       endTime: entry.endTime,
-      numChildren: entry.numChildren,
-      rate: baseRate.toString(),
-      notes: entry.notes || "",
-      hadLunch: entry.hadLunch || false,
-    });
-  };
+      notes: entry.notes || '',
+      lunchBrought: Boolean(entry.lunchBrought),
+    })
+  }
 
   const cancelEdit = () => {
-    setEditingEntryId(null);
+    setEditingEntryId(null)
     setEditForm({
-      date: "",
-      startTime: "09:00",
-      endTime: "12:00",
-      numChildren: 1,
-      rate: "",
-      notes: "",
-      hadLunch: false,
-    });
-  };
-
-  const handleChildCountChange = (value) => {
-    const numChildren = parseInt(value, 10);
-    const rateFromFamily = family?.rates?.[numChildren.toString()];
-
-    setEditForm((prev) => ({
-      ...prev,
-      numChildren,
-      rate:
-        rateFromFamily !== undefined ? rateFromFamily.toString() : prev.rate,
-    }));
-  };
-
-  const getEffectiveRate = () => {
-    const baseRate = parseFloat(editForm.rate) || 0;
-    const lunchDiscount = (family?.lunchDiscount || 0) * editForm.numChildren;
-    return editForm.hadLunch ? Math.max(0, baseRate - lunchDiscount) : baseRate;
-  };
+      childId: '',
+      date: '',
+      startTime: '09:00',
+      endTime: '12:00',
+      notes: '',
+      lunchBrought: true,
+    })
+  }
 
   const saveEdit = async () => {
-    if (!editingEntryId || !user || !family) return;
+    if (!editingEntryId || !user || !family) return
 
     try {
-      setSaving(true);
-      setError("");
-      setSuccess("");
+      setSaving(true)
+      setError('')
+      setSuccess('')
 
-      const baseRate = parseFloat(editForm.rate);
-      
-      // Calculate effective rate with lunch discount (multiplied by number of children)
-      let effectiveRate = baseRate;
-      if (editForm.hadLunch && family?.lunchDiscount) {
-        const totalLunchDiscount = family.lunchDiscount * editForm.numChildren;
-        effectiveRate = Math.max(0, baseRate - totalLunchDiscount);
-      }
-
-      await updateTimeEntry(user.uid, editingEntryId, {
+      await updateAttendance(user.uid, editingEntryId, {
+        childId: editForm.childId,
         familyId: family.id,
         date: editForm.date,
         startTime: editForm.startTime,
         endTime: editForm.endTime,
-        numChildren: parseInt(editForm.numChildren, 10),
-        rate: effectiveRate,
         notes: editForm.notes,
-        hadLunch: editForm.hadLunch,
-      });
+        lunchBrought: Boolean(editForm.lunchBrought),
+      })
 
-      setSuccess("Entry updated successfully!");
-      cancelEdit();
-      await loadData();
-      setTimeout(() => setSuccess(""), 3000);
+      setSuccess('Attendance updated successfully')
+      cancelEdit()
+      await loadData()
+      setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const handleDelete = async (entryId) => {
-    if (!user) return;
-    if (!window.confirm("Delete this entry?")) return;
+    if (!user) return
+    if (!window.confirm('Delete this attendance entry?')) return
 
     try {
-      setError("");
-      setSuccess("");
-      await deleteTimeEntry(user.uid, entryId);
-
+      await deleteAttendance(user.uid, entryId)
       if (editingEntryId === entryId) {
-        cancelEdit();
+        cancelEdit()
       }
-
-      await loadData();
-      setSuccess("Entry deleted successfully!");
-      setTimeout(() => setSuccess(""), 3000);
+      await loadData()
+      setSuccess('Entry deleted successfully')
+      setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
-      setError(err.message);
+      setError(err.message)
     }
-  };
+  }
 
   if (loading) {
     return (
@@ -208,7 +163,7 @@ export default function FamilyLogs() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-figma-accent"></div>
         </div>
       </>
-    );
+    )
   }
 
   return (
@@ -218,12 +173,10 @@ export default function FamilyLogs() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Family Logs</h1>
-            <p className="text-figma-text-secondary mt-1">
-              {family ? family.name : "Unknown Family"}
-            </p>
+            <p className="text-figma-text-secondary mt-1">{family ? family.name : 'Unknown Family'}</p>
           </div>
           <button
-            onClick={() => navigate("/families")}
+            onClick={() => navigate('/families')}
             className="px-4 py-2 bg-figma-elevated text-white rounded-md hover:bg-[#464646] transition"
           >
             Back to Families
@@ -244,308 +197,166 @@ export default function FamilyLogs() {
 
         {!family ? (
           <div className="bg-figma-surface rounded-lg border border-figma-border p-6">
-            <p className="text-figma-text-secondary mb-4">
-              This family could not be found.
-            </p>
-            <Link
-              to="/families"
-              className="text-figma-accent font-medium hover:underline"
-            >
+            <p className="text-figma-text-secondary mb-4">This family could not be found.</p>
+            <Link to="/families" className="text-figma-accent font-medium hover:underline">
               Go back to Families
             </Link>
           </div>
         ) : (
           <>
             <div className="bg-figma-surface rounded-lg border border-figma-border p-6 mb-6">
-              <h2 className="text-xl font-bold text-white mb-4">
-                Filter by Date
-              </h2>
+              <h2 className="text-xl font-bold text-white mb-4">Filter by Date</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) =>
-                      setDateRange((prev) => ({
-                        ...prev,
-                        startDate: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) =>
-                      setDateRange((prev) => ({
-                        ...prev,
-                        endDate: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={loadData}
-                    className="w-full px-4 py-2 bg-figma-accent text-white rounded-md hover:bg-figma-accent-hover transition"
-                  >
-                    Refresh
-                  </button>
-                </div>
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(event) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      startDate: event.target.value,
+                    }))
+                  }
+                  className="px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                />
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(event) =>
+                    setDateRange((prev) => ({
+                      ...prev,
+                      endDate: event.target.value,
+                    }))
+                  }
+                  className="px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                />
+                <button onClick={loadData} className="px-4 py-2 bg-figma-accent text-white rounded-md">
+                  Refresh
+                </button>
               </div>
             </div>
 
             <div className="bg-figma-surface rounded-lg border border-figma-border p-6 mb-6">
               <h2 className="text-xl font-bold text-white mb-4">
-                {editingEntryId ? "Edit Entry" : "Select an Entry to Edit"}
+                {editingEntryId ? 'Edit Attendance Entry' : 'Select an Entry to Edit'}
               </h2>
 
               {editingEntryId ? (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={editForm.date}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          date: e.target.value,
-                        }))
-                      }
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                    />
-                  </div>
+                <div className="space-y-3">
+                  <select
+                    value={editForm.childId}
+                    onChange={(event) => setEditForm((prev) => ({ ...prev, childId: event.target.value }))}
+                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                  >
+                    {children.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        {child.displayName || child.firstName}
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="date"
+                    value={editForm.date}
+                    onChange={(event) => setEditForm((prev) => ({ ...prev, date: event.target.value }))}
+                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                  />
 
                   <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                        Start Time
-                      </label>
-                      <input
-                        type="time"
-                        value={editForm.startTime}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            startTime: e.target.value,
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                        End Time
-                      </label>
-                      <input
-                        type="time"
-                        value={editForm.endTime}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({
-                            ...prev,
-                            endTime: e.target.value,
-                          }))
-                        }
-                        className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                      Number of Children
-                    </label>
-                    <select
-                      value={editForm.numChildren}
-                      onChange={(e) => handleChildCountChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
-                    >
-                      {availableChildCounts.map((count) => (
-                        <option key={count} value={count}>
-                          {count} child{count > 1 ? "ren" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                      Rate (USD/hr)
-                    </label>
-                    <div className="relative mb-4">
-                    <span className="absolute inset-y-0 left-3 flex items-center text-figma-text-secondary pointer-events-none">$</span>
                     <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={editForm.rate}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          rate: e.target.value,
-                        }))
-                      }
-                      className="w-full pl-7 px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
+                      type="time"
+                      value={editForm.startTime}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, startTime: event.target.value }))}
+                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
                     />
-                    </div>
-                    {family?.lunchDiscount && (
-                      <div className="mb-4 p-3 bg-figma-elevated rounded-md border border-figma-border">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={editForm.hadLunch}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({
-                                ...prev,
-                                hadLunch: e.target.checked,
-                              }))
-                            }
-                            className="w-4 h-4 rounded border-figma-border bg-figma-surface cursor-pointer"
-                          />
-                          <span className="text-sm font-medium text-figma-text-secondary">
-                            Lunch provided (-${family.lunchDiscount}/hr per child)
-                          </span>
-                        </label>
-                        <p className="text-xs text-figma-text-placeholder mt-2">
-                          Effective rate: ${getEffectiveRate().toFixed(2)}/hr
-                        </p>
-                      </div>
-                    )}
+                    <input
+                      type="time"
+                      value={editForm.endTime}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, endTime: event.target.value }))}
+                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                    />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-figma-text-secondary mb-1">
-                      Notes
-                    </label>
-                    <textarea
-                      value={editForm.notes}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          notes: e.target.value,
-                        }))
-                      }
-                      rows="2"
-                      className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md focus:outline-none focus:ring-figma-accent focus:border-figma-accent"
+                  <label className="text-sm text-figma-text-secondary flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editForm.lunchBrought}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, lunchBrought: event.target.checked }))}
                     />
-                  </div>
+                    Lunch brought from home
+                  </label>
+
+                  <textarea
+                    value={editForm.notes}
+                    onChange={(event) => setEditForm((prev) => ({ ...prev, notes: event.target.value }))}
+                    className="w-full px-3 py-2 border border-figma-border bg-figma-elevated text-white rounded-md"
+                    rows={2}
+                    placeholder="Notes"
+                  />
 
                   <div className="flex gap-2">
-                    <button
-                      onClick={saveEdit}
-                      disabled={saving}
-                      className="px-4 py-2 bg-figma-accent text-white rounded-md hover:bg-figma-accent-hover transition disabled:opacity-50"
-                    >
-                      {saving ? "Saving..." : "Save Changes"}
+                    <button onClick={saveEdit} disabled={saving} className="px-4 py-2 bg-figma-accent text-white rounded-md">
+                      {saving ? 'Saving...' : 'Save'}
                     </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="px-4 py-2 bg-figma-elevated text-white rounded-md hover:bg-[#464646] transition"
-                    >
+                    <button onClick={cancelEdit} className="px-4 py-2 bg-figma-elevated text-white rounded-md">
                       Cancel
                     </button>
                   </div>
                 </div>
               ) : (
-                <p className="text-figma-text-secondary">
-                  Choose any entry below and click Edit.
-                </p>
+                <p className="text-figma-text-secondary">Click Edit in the table below.</p>
               )}
             </div>
 
-            <div className="bg-figma-surface rounded-lg border border-figma-border p-6">
-              <h2 className="text-xl font-bold text-white mb-4">Entries</h2>
-              {entries.length === 0 ? (
-                <div className="text-center py-8 bg-figma-elevated rounded-lg">
-                  <p className="text-figma-text-secondary">
-                    No entries for this date range
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-figma-border">
-                    <thead className="bg-figma-elevated">
-                      <tr>
-                        <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">
-                          Date
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">
-                          Duration (hours)
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
-                          Rate
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">
-                          Lunch
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-right text-figma-text-secondary">
-                          Total
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">
-                          Actions
-                        </th>
+            <div className="overflow-x-auto bg-figma-surface border border-figma-border rounded-lg">
+              <table className="w-full border-collapse">
+                <thead className="bg-figma-elevated">
+                  <tr>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Date</th>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Child</th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Time</th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Home Lunch</th>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Notes</th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-6 text-center text-figma-text-secondary">
+                        No attendance entries in this date range.
+                      </td>
+                    </tr>
+                  ) : (
+                    entries.map((entry) => (
+                      <tr key={entry.id} className="hover:bg-figma-elevated">
+                        <td className="border border-figma-border px-4 py-2 text-white">{entry.date}</td>
+                        <td className="border border-figma-border px-4 py-2 text-white">
+                          {childNameById[entry.childId] || 'Unknown Child'}
+                        </td>
+                        <td className="border border-figma-border px-4 py-2 text-center text-white">
+                          {entry.startTime} - {entry.endTime}
+                        </td>
+                        <td className="border border-figma-border px-4 py-2 text-center text-white">
+                          {entry.lunchBrought ? 'Yes' : 'No'}
+                        </td>
+                        <td className="border border-figma-border px-4 py-2 text-white">{entry.notes || '-'}</td>
+                        <td className="border border-figma-border px-4 py-2 text-center">
+                          <button onClick={() => startEdit(entry)} className="text-figma-accent hover:underline mr-3">
+                            Edit
+                          </button>
+                          <button onClick={() => handleDelete(entry.id)} className="text-figma-error hover:underline">
+                            Delete
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((entry) => {
-                        const isEditingRow = editingEntryId === entry.id;
-                        return (
-                          <tr
-                            key={entry.id}
-                            className={`hover:bg-figma-elevated ${isEditingRow ? "bg-figma-elevated ring-2 ring-figma-accent/40" : ""}`}
-                          >
-                            <td className="border border-figma-border px-4 py-2 text-white">
-                              {entry.date}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {Number(entry.duration || 0).toFixed(2)}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-right text-white">
-                              ${entry.rate}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {entry.hadLunch ? "✓" : "-"}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-right font-bold text-figma-success">
-                              ${entry.totalEarned}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center">
-                              <button
-                                onClick={() => startEdit(entry)}
-                                className="text-figma-accent hover:text-figma-accent-hover font-medium mr-3"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDelete(entry.id)}
-                                className="text-figma-error hover:text-[#d13e1e] font-medium"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </>
         )}
       </div>
     </>
-  );
+  )
 }

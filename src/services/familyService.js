@@ -2,63 +2,50 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   updateDoc,
   deleteDoc,
   doc,
-  query,
-  where,
   Timestamp,
 } from 'firebase/firestore'
 import { db } from '../firebase'
+import { COLLECTIONS, SCHEMA_VERSION } from '../constants/schemaV2'
 
 /**
- * Validate rate structure
- * @param {Object} rates - Object with child count as key, rate as value
- * @throws {Error} if rates invalid
+ * Deprecated compatibility helper. Rates moved to global config in schema v2.
+ * @param {Object} rates
  */
 export function validateRates(rates) {
-  if (!rates || typeof rates !== 'object' || Object.keys(rates).length === 0) {
-    throw new Error('At least one rate must be configured')
+  if (rates !== undefined && (typeof rates !== 'object' || rates === null)) {
+    throw new Error('Rates must be an object when provided')
   }
-
-  Object.entries(rates).forEach(([childCount, rate]) => {
-    const count = parseInt(childCount)
-    if (isNaN(count) || count < 1) {
-      throw new Error('Child count must be a positive integer')
-    }
-    if (typeof rate !== 'number' || rate <= 0) {
-      throw new Error(`Rate for ${childCount} child(ren) must be a positive number`)
-    }
-  })
 }
 
 /**
- * Add a new family with rates
+ * Add a new family (metadata only)
  * @param {string} userId - User ID
- * @param {Object} familyData - { name, rates: { childCount: hourlyRate, ... }, lunchDiscount?: number }
+ * @param {Object} familyData
  * @returns {Promise<string>} Family ID
  */
 export async function addFamily(userId, familyData) {
-  const { name, rates, lunchDiscount } = familyData
+  const { name, contactName, phone, notes, isActive } = familyData
 
   if (!name || name.trim() === '') {
     throw new Error('Family name is required')
   }
 
-  validateRates(rates)
-
-  const familiesRef = collection(db, 'users', userId, 'families')
+  const familiesRef = collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES)
   const data = {
     name: name.trim(),
-    rates,
+    contactName: contactName ? String(contactName).trim() : '',
+    phone: phone ? String(phone).trim() : '',
+    notes: notes ? String(notes).trim() : '',
+    isActive: isActive !== false,
+    schemaVersion: SCHEMA_VERSION,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   }
-  
-  if (lunchDiscount !== undefined && lunchDiscount > 0) {
-    data.lunchDiscount = lunchDiscount
-  }
-  
+
   const docRef = await addDoc(familiesRef, data)
 
   return docRef.id
@@ -70,7 +57,7 @@ export async function addFamily(userId, familyData) {
  * @returns {Promise<Array>} Array of family objects with id
  */
 export async function getFamilies(userId) {
-  const familiesRef = collection(db, 'users', userId, 'families')
+  const familiesRef = collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES)
   const snapshot = await getDocs(familiesRef)
 
   return snapshot.docs.map((doc) => ({
@@ -86,8 +73,8 @@ export async function getFamilies(userId) {
  * @returns {Promise<Object>} Family object
  */
 export async function getFamily(userId, familyId) {
-  const familyRef = doc(db, 'users', userId, 'families', familyId)
-  const snapshot = await getDocs(collection(familyRef))
+  const familyRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES, familyId)
+  const snapshot = await getDoc(familyRef)
 
   if (!snapshot.exists()) {
     throw new Error('Family not found')
@@ -100,31 +87,29 @@ export async function getFamily(userId, familyId) {
 }
 
 /**
- * Update family data
+ * Update family metadata
  * @param {string} userId - User ID
  * @param {string} familyId - Family ID
- * @param {Object} updates - Fields to update (name, rates, lunchDiscount)
+ * @param {Object} updates - Fields to update
  * @returns {Promise<void>}
  */
 export async function updateFamily(userId, familyId, updates) {
-  const { name, rates, lunchDiscount } = updates
+  const { name, contactName, phone, notes, isActive } = updates
 
   if (name !== undefined && (name === null || name.trim() === '')) {
     throw new Error('Family name is required')
   }
 
-  if (rates !== undefined) {
-    validateRates(rates)
-  }
-
-  const familyRef = doc(db, 'users', userId, 'families', familyId)
+  const familyRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES, familyId)
   const dataToUpdate = {}
 
   if (name !== undefined) dataToUpdate.name = name.trim()
-  if (rates !== undefined) dataToUpdate.rates = rates
-  if (lunchDiscount !== undefined) {
-    dataToUpdate.lunchDiscount = lunchDiscount > 0 ? lunchDiscount : null
-  }
+  if (contactName !== undefined) dataToUpdate.contactName = String(contactName || '').trim()
+  if (phone !== undefined) dataToUpdate.phone = String(phone || '').trim()
+  if (notes !== undefined) dataToUpdate.notes = String(notes || '').trim()
+  if (isActive !== undefined) dataToUpdate.isActive = Boolean(isActive)
+
+  dataToUpdate.schemaVersion = SCHEMA_VERSION
 
   dataToUpdate.updatedAt = Timestamp.now()
 
@@ -138,6 +123,17 @@ export async function updateFamily(userId, familyId, updates) {
  * @returns {Promise<void>}
  */
 export async function deleteFamily(userId, familyId) {
-  const familyRef = doc(db, 'users', userId, 'families', familyId)
+  const childrenRef = collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.CHILDREN)
+  const childrenSnapshot = await getDocs(childrenRef)
+  const hasChildren = childrenSnapshot.docs.some((snapshot) => {
+    const child = snapshot.data()
+    return child.familyId === familyId && child.isActive !== false
+  })
+
+  if (hasChildren) {
+    throw new Error('Cannot delete family with active children')
+  }
+
+  const familyRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES, familyId)
   await deleteDoc(familyRef)
 }

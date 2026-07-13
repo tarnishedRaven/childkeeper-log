@@ -8,7 +8,7 @@ import Dashboard from './pages/Dashboard'
 import Families from './pages/Families'
 import FamilyLogs from './pages/FamilyLogs'
 import LogHours from './pages/LogHours'
-import Reports from './pages/Reports'
+import Invoices from './pages/Invoices'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt'
 import InstallAppPrompt from './components/InstallAppPrompt'
 
@@ -53,13 +53,14 @@ function App() {
             }
           />
           <Route
-            path="/reports"
+            path="/invoices"
             element={
               <ProtectedRoute>
-                <Reports />
+                <Invoices />
               </ProtectedRoute>
             }
           />
+          <Route path="/reports" element={<Navigate to="/invoices" replace />} />
 
           <Route path="/" element={<Navigate to="/dashboard" />} />
         </Routes>

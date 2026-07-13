@@ -1,231 +1,153 @@
 import {
-  collection,
-  addDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  doc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-} from 'firebase/firestore'
-import { db } from '../firebase'
+  addAttendance,
+  addAttendanceBatch,
+  deleteAttendance,
+  getAttendanceByDateRange,
+  getAttendanceByFamilyDateRange,
+  getRecentAttendance,
+  updateAttendance,
+} from './attendanceService'
+import { roundToCents } from '../utils/money'
 
-/**
- * Calculate duration in hours from start and end time (HH:MM format)
- * @param {string} startTime - Start time in HH:MM format
- * @param {string} endTime - End time in HH:MM format
- * @returns {number} Duration in hours
- * @throws {Error} if times invalid or end before start
- */
 export function calculateDuration(startTime, endTime) {
-  const parseTime = (timeStr) => {
-    const [hours, minutes] = timeStr.split(':').map(Number)
-    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-      throw new Error('Invalid time format (use HH:MM)')
-    }
-    return hours * 60 + minutes
+  const [startHours, startMinutes] = String(startTime).split(':').map(Number)
+  const [endHours, endMinutes] = String(endTime).split(':').map(Number)
+
+  if (
+    !Number.isInteger(startHours) ||
+    !Number.isInteger(startMinutes) ||
+    !Number.isInteger(endHours) ||
+    !Number.isInteger(endMinutes) ||
+    startHours < 0 ||
+    startHours > 23 ||
+    endHours < 0 ||
+    endHours > 23 ||
+    startMinutes < 0 ||
+    startMinutes > 59 ||
+    endMinutes < 0 ||
+    endMinutes > 59
+  ) {
+    throw new Error('Invalid time format (use HH:MM)')
   }
 
-  const startMinutes = parseTime(startTime)
-  const endMinutes = parseTime(endTime)
-
-  if (endMinutes <= startMinutes) {
+  const startTotalMinutes = startHours * 60 + startMinutes
+  const endTotalMinutes = endHours * 60 + endMinutes
+  if (endTotalMinutes <= startTotalMinutes) {
     throw new Error('End time must be after start time')
   }
 
-  const rawDuration = (endMinutes - startMinutes) / 60
-  return Math.round(rawDuration * 100) / 100
+  return Math.round(((endTotalMinutes - startTotalMinutes) / 60) * 100) / 100
 }
 
-/**
- * Calculate earnings from duration and rate
- * @param {number} duration - Duration in hours
- * @param {number} rate - Hourly rate
- * @returns {number} Total earnings
- */
 export function calculateEarnings(duration, rate) {
   if (!Number.isFinite(duration) || !Number.isFinite(rate) || duration <= 0 || rate <= 0) {
     throw new Error('Duration and rate must be positive')
   }
-  return Math.round(duration * rate * 100) / 100
+
+  return roundToCents(duration * rate) / 100
 }
 
-/**
- * Add a new time entry
- * @param {string} userId - User ID
- * @param {Object} entryData - { familyId, date, startTime, endTime, numChildren, rate, notes, hadLunch }
- * @returns {Promise<string>} Entry ID
- */
+function toLegacyEntry(entry) {
+  const rate = Number(entry.rate || 0)
+  const duration = calculateDuration(entry.startTime, entry.endTime)
+
+  return {
+    ...entry,
+    rate,
+    hadLunch: entry.lunchBrought || false,
+    numChildren: Number(entry.numChildren || 1),
+    duration,
+    totalEarned: calculateEarnings(duration, rate),
+  }
+}
+
 export async function addTimeEntry(userId, entryData) {
-  const { familyId, date, startTime, endTime, numChildren, rate, notes, hadLunch } = entryData
+  const { familyId, childId, date, startTime, endTime, notes, hadLunch, lunchBrought } = entryData
+  const rate = Number(entryData.rate)
+  const numChildren = Number(entryData.numChildren ?? 1)
 
   if (!familyId) throw new Error('Family ID is required')
   if (!date) throw new Error('Date is required')
   if (!startTime) throw new Error('Start time is required')
   if (!endTime) throw new Error('End time is required')
-  if (numChildren === undefined || numChildren < 1) {
+  if (!Number.isInteger(numChildren) || numChildren < 1) {
     throw new Error('Number of children must be at least 1')
   }
-  if (!Number.isFinite(rate) || rate <= 0) {
-    throw new Error('Rate must be a positive number')
-  }
+  if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate must be a positive number')
 
-  const duration = calculateDuration(startTime, endTime)
-  const totalEarned = calculateEarnings(duration, rate)
-
-  const entriesRef = collection(db, 'users', userId, 'timeEntries')
-  const docRef = await addDoc(entriesRef, {
+  const attendanceId = await addAttendance(userId, {
+    childId: childId || `${familyId}-legacy-child`,
     familyId,
     date,
     startTime,
     endTime,
-    duration,
-    numChildren,
-    rate,
-    totalEarned,
+    lunchBrought: lunchBrought ?? hadLunch ?? false,
     notes: notes || '',
-    hadLunch: hadLunch || false,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
+    rate,
+    numChildren,
   })
 
-  return docRef.id
+  return attendanceId
 }
 
-/**
- * Get time entries for a user within date range
- * @param {string} userId - User ID
- * @param {string} startDate - Start date (YYYY-MM-DD)
- * @param {string} endDate - End date (YYYY-MM-DD)
- * @returns {Promise<Array>} Array of time entry objects
- */
+export async function addTimeEntries(userId, entryRows) {
+  const payload = entryRows.map((entryData) => ({
+    childId: entryData.childId || `${entryData.familyId}-legacy-child`,
+    familyId: entryData.familyId,
+    date: entryData.date,
+    startTime: entryData.startTime,
+    endTime: entryData.endTime,
+    lunchBrought: entryData.lunchBrought ?? entryData.hadLunch ?? false,
+    notes: entryData.notes || '',
+    rate: Number(entryData.rate || 0),
+    numChildren: Number(entryData.numChildren ?? 1),
+  }))
+
+  return addAttendanceBatch(userId, payload)
+}
+
 export async function getTimeEntries(userId, startDate, endDate) {
-  const entriesRef = collection(db, 'users', userId, 'timeEntries')
-  const q = query(
-    entriesRef,
-    where('date', '>=', startDate),
-    where('date', '<=', endDate),
-    orderBy('date', 'desc')
-  )
-  const snapshot = await getDocs(q)
-
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }))
+  const rows = await getAttendanceByDateRange(userId, startDate, endDate)
+  return rows.map(toLegacyEntry)
 }
 
-/**
- * Get most recent time entries for a user across all dates
- * @param {string} userId - User ID
- * @param {number} maxEntries - Maximum number of entries to return
- * @returns {Promise<Array>} Array of time entry objects
- */
 export async function getRecentTimeEntries(userId, maxEntries = 10) {
-  const entriesRef = collection(db, 'users', userId, 'timeEntries')
-  const q = query(entriesRef, orderBy('createdAt', 'desc'), limit(maxEntries))
-  const snapshot = await getDocs(q)
-
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }))
+  const rows = await getRecentAttendance(userId, maxEntries)
+  return rows.map(toLegacyEntry)
 }
 
-/**
- * Get time entries for a specific family within date range
- * Uses existing date-range query and filters client-side to avoid extra Firestore indexes.
- * @param {string} userId - User ID
- * @param {string} familyId - Family ID
- * @param {string} startDate - Start date (YYYY-MM-DD)
- * @param {string} endDate - End date (YYYY-MM-DD)
- * @returns {Promise<Array>} Array of time entry objects for the family
- */
 export async function getTimeEntriesByFamily(userId, familyId, startDate, endDate) {
   if (!familyId) {
     throw new Error('Family ID is required')
   }
 
-  const entries = await getTimeEntries(userId, startDate, endDate)
-  return entries.filter((entry) => entry.familyId === familyId)
+  const rows = await getAttendanceByFamilyDateRange(userId, familyId, startDate, endDate)
+  return rows.map(toLegacyEntry)
 }
 
-/**
- * Update a time entry
- * @param {string} userId - User ID
- * @param {string} entryId - Entry ID
- * @param {Object} updates - Fields to update
- * @returns {Promise<void>}
- */
 export async function updateTimeEntry(userId, entryId, updates) {
-  const { familyId, date, startTime, endTime, rate, numChildren, notes, hadLunch } = updates
-
-  const dataToUpdate = {}
-
-  if (familyId !== undefined) {
-    if (!familyId) throw new Error('Family ID is required')
-    dataToUpdate.familyId = familyId
+  if (updates.rate !== undefined && (!Number.isFinite(updates.rate) || updates.rate <= 0)) {
+    throw new Error('Rate must be positive')
   }
 
-  if (date !== undefined) {
-    if (!date) throw new Error('Date is required')
-    dataToUpdate.date = date
-  }
-
-  if (rate !== undefined) {
-    if (!Number.isFinite(rate) || rate <= 0) throw new Error('Rate must be positive')
-    dataToUpdate.rate = rate
-  }
-
-  if (startTime !== undefined || endTime !== undefined) {
-    if (startTime === undefined || endTime === undefined) {
+  if (updates.startTime !== undefined || updates.endTime !== undefined) {
+    if (updates.startTime === undefined || updates.endTime === undefined) {
       throw new Error('Both start and end time are required when updating time')
     }
 
-    const start = startTime
-    const end = endTime
-    const duration = calculateDuration(start, end)
-    const currentRate = rate
+    calculateDuration(updates.startTime, updates.endTime)
 
-    if (currentRate === undefined) {
+    if (updates.rate === undefined) {
       throw new Error('Rate is required when updating time')
     }
-
-    const totalEarned = calculateEarnings(duration, currentRate)
-
-    dataToUpdate.startTime = startTime
-    dataToUpdate.endTime = endTime
-    dataToUpdate.duration = duration
-    dataToUpdate.totalEarned = totalEarned
-  } else if (rate !== undefined) {
-    // Recalculate earnings with existing duration
-    // Duration must be fetched from Firestore in real usage
   }
 
-  if (numChildren !== undefined) {
-    if (numChildren < 1) throw new Error('Number of children must be at least 1')
-    dataToUpdate.numChildren = numChildren
-  }
-
-  if (notes !== undefined) dataToUpdate.notes = notes
-  if (hadLunch !== undefined) dataToUpdate.hadLunch = hadLunch
-
-  dataToUpdate.updatedAt = Timestamp.now()
-
-  const entryRef = doc(db, 'users', userId, 'timeEntries', entryId)
-  await updateDoc(entryRef, dataToUpdate)
+  await updateAttendance(userId, entryId, {
+    ...updates,
+    lunchBrought: updates.lunchBrought ?? updates.hadLunch,
+  })
 }
 
-/**
- * Delete a time entry
- * @param {string} userId - User ID
- * @param {string} entryId - Entry ID
- * @returns {Promise<void>}
- */
 export async function deleteTimeEntry(userId, entryId) {
-  const entryRef = doc(db, 'users', userId, 'timeEntries', entryId)
-  await deleteDoc(entryRef)
+  await deleteAttendance(userId, entryId)
 }
