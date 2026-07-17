@@ -22,6 +22,8 @@ const defaultFormData = {
   date: todayIsoDate(),
   startTime: '09:00',
   endTime: '12:00',
+  bulkStartTime: '09:00',
+  bulkEndTime: '12:00',
   notes: '',
   lunchByChild: {},
   childTimesById: {},
@@ -120,8 +122,8 @@ export default function LogHours() {
         delete lunchByChild[childId]
       } else {
         childTimesById[childId] = {
-          startTime: prev.startTime,
-          endTime: prev.endTime,
+          startTime: prev.bulkStartTime,
+          endTime: prev.bulkEndTime,
         }
       }
 
@@ -158,6 +160,29 @@ export default function LogHours() {
         [childId]: checked,
       },
     }))
+  }
+
+  const updateBulkTime = (key, value) => {
+    setFormData((prev) => {
+      const bulkStartTime = key === 'bulkStartTime' ? value : prev.bulkStartTime
+      const bulkEndTime = key === 'bulkEndTime' ? value : prev.bulkEndTime
+      const childTimesById = { ...prev.childTimesById }
+
+      prev.selectedChildIds.forEach((childId) => {
+        childTimesById[childId] = {
+          ...(childTimesById[childId] || {}),
+          startTime: bulkStartTime,
+          endTime: bulkEndTime,
+        }
+      })
+
+      return {
+        ...prev,
+        bulkStartTime,
+        bulkEndTime,
+        childTimesById,
+      }
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -224,8 +249,8 @@ export default function LogHours() {
         markPendingSync()
       }
 
-      setEditingEntryId(null)
-  setEditingEntryFamilyId('')
+        setEditingEntryId(null)
+        setEditingEntryFamilyId('')
       setEditingChildId('')
       setFormData(defaultFormData)
       await loadData()
@@ -260,6 +285,8 @@ export default function LogHours() {
       date: entry.date,
       startTime: entry.startTime,
       endTime: entry.endTime,
+      bulkStartTime: entry.startTime,
+      bulkEndTime: entry.endTime,
       notes: entry.notes || '',
       lunchByChild: {
         [entry.childId]: Boolean(entry.lunchBrought),
@@ -339,6 +366,7 @@ export default function LogHours() {
                           <span className="flex items-center gap-3">
                             <input
                               type="checkbox"
+                              aria-label={`Select ${child.displayName || child.firstName || 'Unknown Child'}`}
                               disabled={editingEntryId && child.id !== editingChildId}
                               checked={formData.selectedChildIds.includes(child.id)}
                               onChange={() => toggleChildSelection(child.id)}
@@ -346,6 +374,7 @@ export default function LogHours() {
                             <label className="text-xs text-figma-text-secondary flex items-center gap-1">
                               <input
                                 type="checkbox"
+                                aria-label={`Lunch brought for ${child.displayName || child.firstName || 'Unknown Child'}`}
                                 checked={Boolean(formData.lunchByChild[child.id])}
                                 onChange={(event) => toggleLunchForChild(child.id, event.target.checked)}
                                 disabled={!formData.selectedChildIds.includes(child.id)}
@@ -389,6 +418,34 @@ export default function LogHours() {
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    <div className="bg-figma-elevated border border-figma-border rounded-md p-3 space-y-2">
+                      <label className="block text-sm font-medium text-figma-text-secondary">Set same time for selected children</label>
+                      <div className="grid grid-cols-2 gap-2 min-w-0">
+                        <input
+                          type="time"
+                          required
+                          aria-label="Bulk Start Time"
+                          value={formData.bulkStartTime}
+                          disabled={formData.selectedChildIds.length === 0}
+                          onChange={(event) => updateBulkTime('bulkStartTime', event.target.value)}
+                          className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md disabled:opacity-60"
+                        />
+                        <input
+                          type="time"
+                          required
+                          aria-label="Bulk End Time"
+                          value={formData.bulkEndTime}
+                          disabled={formData.selectedChildIds.length === 0}
+                          onChange={(event) => updateBulkTime('bulkEndTime', event.target.value)}
+                          className="ios-compact-picker w-full min-w-0 px-2 sm:px-3 py-2 text-sm sm:text-base border border-figma-border bg-figma-surface text-white rounded-md disabled:opacity-60"
+                        />
+                      </div>
+                      <p className="text-xs text-figma-text-secondary">
+                        Applies to {formData.selectedChildIds.length} selected child
+                        {formData.selectedChildIds.length === 1 ? '' : 'ren'} and overwrites existing per-child times.
+                      </p>
+                    </div>
+
                     <label className="block text-sm font-medium text-figma-text-secondary mb-1">Times By Child</label>
                     {formData.selectedChildIds.length === 0 ? (
                       <p className="text-sm text-figma-text-placeholder">Select children to set individual start and end times</p>
