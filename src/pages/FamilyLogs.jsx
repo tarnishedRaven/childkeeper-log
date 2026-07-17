@@ -40,6 +40,8 @@ export default function FamilyLogs() {
     lunchBrought: true,
   })
   const [dateRange, setDateRange] = useState(defaultDateRange)
+  const [sortCol, setSortCol] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
 
   useEffect(() => {
     loadData()
@@ -82,6 +84,45 @@ export default function FamilyLogs() {
       }, {}),
     [children]
   )
+
+  const handleSort = (col) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort((a, b) => {
+      let aVal, bVal
+      switch (sortCol) {
+        case 'child':
+          aVal = childNameById[a.childId] ?? ''
+          bVal = childNameById[b.childId] ?? ''
+          break
+        case 'time':
+          aVal = a.startTime ?? ''
+          bVal = b.startTime ?? ''
+          break
+        case 'lunch':
+          aVal = a.lunchBrought ? 1 : 0
+          bVal = b.lunchBrought ? 1 : 0
+          break
+        case 'notes':
+          aVal = a.notes ?? ''
+          bVal = b.notes ?? ''
+          break
+        default:
+          aVal = a.date ?? ''
+          bVal = b.date ?? ''
+      }
+      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [entries, sortCol, sortDir, childNameById])
 
   const startEdit = (entry) => {
     setError('')
@@ -311,11 +352,21 @@ export default function FamilyLogs() {
               <table className="w-full border-collapse">
                 <thead className="bg-figma-elevated">
                   <tr>
-                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Date</th>
-                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Child</th>
-                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Time</th>
-                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Home Lunch</th>
-                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary">Notes</th>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('date')}>
+                      Date <span className={sortCol === 'date' ? 'text-white' : 'text-gray-600'}>{sortCol === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                    </th>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('child')}>
+                      Child <span className={sortCol === 'child' ? 'text-white' : 'text-gray-600'}>{sortCol === 'child' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                    </th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('time')}>
+                      Time <span className={sortCol === 'time' ? 'text-white' : 'text-gray-600'}>{sortCol === 'time' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                    </th>
+                    <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('lunch')}>
+                      Home Lunch <span className={sortCol === 'lunch' ? 'text-white' : 'text-gray-600'}>{sortCol === 'lunch' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                    </th>
+                    <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('notes')}>
+                      Notes <span className={sortCol === 'notes' ? 'text-white' : 'text-gray-600'}>{sortCol === 'notes' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                    </th>
                     <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
                   </tr>
                 </thead>
@@ -327,7 +378,7 @@ export default function FamilyLogs() {
                       </td>
                     </tr>
                   ) : (
-                    entries.map((entry) => (
+                    sortedEntries.map((entry) => (
                       <tr key={entry.id} className="hover:bg-figma-elevated">
                         <td className="border border-figma-border px-4 py-2 text-white">{entry.date}</td>
                         <td className="border border-figma-border px-4 py-2 text-white">

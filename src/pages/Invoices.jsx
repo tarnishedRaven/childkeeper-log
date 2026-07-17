@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef, useMemo } from 'react'
 import Navbar from '../components/Navbar'
 import { useAuth } from '../context/AuthContext'
 import { getFamilies } from '../services/familyService'
@@ -21,6 +21,8 @@ export default function Invoices() {
   const [globalRates, setGlobalRates] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [sortCol, setSortCol] = useState('date')
+  const [sortDir, setSortDir] = useState('desc')
   const [dateRange, setDateRange] = useState({
     startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
       .toISOString()
@@ -125,6 +127,60 @@ export default function Invoices() {
 
     return (row.ratePerHour * familyChildCount) / row.childCount
   }
+
+  const handleInvoiceSort = (col) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortCol(col)
+      setSortDir('asc')
+    }
+  }
+
+  const sortedFamilies = useMemo(() => {
+    if (!invoiceData || invoiceType !== 'itemized') return null
+    return invoiceData.families.map((family) => ({
+      ...family,
+      data: {
+        ...family.data,
+        lineItems: [...family.data.lineItems].sort((a, b) => {
+          let aVal, bVal
+          switch (sortCol) {
+            case 'description':
+              aVal = a.startTime ?? ''
+              bVal = b.startTime ?? ''
+              break
+            case 'children':
+              aVal = (a.childNames ?? (a.childName ? [a.childName] : [])).join(', ')
+              bVal = (b.childNames ?? (b.childName ? [b.childName] : [])).join(', ')
+              break
+            case 'childCount':
+              aVal = a.childCount ?? 0
+              bVal = b.childCount ?? 0
+              break
+            case 'rate':
+              aVal = a.ratePerHour ?? 0
+              bVal = b.ratePerHour ?? 0
+              break
+            case 'nominalRate':
+              aVal = getNominalSplitRate(a)
+              bVal = getNominalSplitRate(b)
+              break
+            case 'amount':
+              aVal = a.familyShare ?? a.fee ?? 0
+              bVal = b.familyShare ?? b.fee ?? 0
+              break
+            default:
+              aVal = a.date ?? ''
+              bVal = b.date ?? ''
+          }
+          if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
+          if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
+          return 0
+        }),
+      },
+    }))
+  }, [invoiceData, invoiceType, sortCol, sortDir])
 
   return (
     <>
@@ -331,7 +387,7 @@ export default function Invoices() {
               )}
 
               {/* Itemized invoice */}
-              {invoiceType === 'itemized' && invoiceData.families.map(({ familyId, familyName, data }, familyIndex) => (
+              {invoiceType === 'itemized' && (sortedFamilies ?? invoiceData.families).map(({ familyId, familyName, data }, familyIndex) => (
                 <div
                   key={familyId}
                   className={`mb-8 ${invoiceData.families.length > 1 && familyIndex > 0 ? 'pdf-page-break-before' : ''}`}
@@ -348,13 +404,27 @@ export default function Invoices() {
                       <table className="pdf-table w-full border-collapse border border-gray-300">
                         <thead className="bg-gray-100">
                           <tr>
-                            <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
-                            <th className="border border-gray-300 px-4 py-2 text-left">Description</th>
-                            <th className="border border-gray-300 px-4 py-2 text-left">Children</th>
-                            <th className="border border-gray-300 px-4 py-2 text-center">Total Children</th>
-                            <th className="border border-gray-300 px-4 py-2 text-center">Rate/hr</th>
-                            <th className="border border-gray-300 px-4 py-2 text-center">Nominal Rate</th>
-                            <th className="border border-gray-300 px-4 py-2 text-right">Amount</th>
+                            <th className="border border-gray-300 px-4 py-2 text-left cursor-pointer select-none" onClick={() => handleInvoiceSort('date')}>
+                              Date <span className={sortCol === 'date' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-left cursor-pointer select-none" onClick={() => handleInvoiceSort('description')}>
+                              Description <span className={sortCol === 'description' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'description' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-left cursor-pointer select-none" onClick={() => handleInvoiceSort('children')}>
+                              Children <span className={sortCol === 'children' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'children' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-center cursor-pointer select-none" onClick={() => handleInvoiceSort('childCount')}>
+                              Total Children <span className={sortCol === 'childCount' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'childCount' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-center cursor-pointer select-none" onClick={() => handleInvoiceSort('rate')}>
+                              Rate/hr <span className={sortCol === 'rate' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'rate' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-center cursor-pointer select-none" onClick={() => handleInvoiceSort('nominalRate')}>
+                              Nominal Rate <span className={sortCol === 'nominalRate' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'nominalRate' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
+                            <th className="border border-gray-300 px-4 py-2 text-right cursor-pointer select-none" onClick={() => handleInvoiceSort('amount')}>
+                              Amount <span className={sortCol === 'amount' ? 'text-gray-900' : 'text-gray-400'}>{sortCol === 'amount' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
