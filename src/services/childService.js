@@ -3,12 +3,14 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   Timestamp,
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { COLLECTIONS, SCHEMA_VERSION } from '../constants/schemaV2'
+import { syncAttendanceSortKeysForChild } from './attendanceService'
 
 function normalizeChildPayload(data) {
   const firstName = String(data.firstName || '').trim()
@@ -74,6 +76,12 @@ export async function getChildren(userId, filters = {}) {
 export async function updateChild(userId, childId, updates) {
   const childRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.CHILDREN, childId)
   const payload = {}
+  const needsNameSync =
+    updates.displayName !== undefined ||
+    updates.firstName !== undefined ||
+    updates.lastName !== undefined
+  const currentSnapshot = needsNameSync ? await getDoc(childRef) : null
+  const currentData = currentSnapshot?.exists() ? currentSnapshot.data() : {}
 
   if (updates.firstName !== undefined) payload.firstName = String(updates.firstName || '').trim()
   if (updates.lastName !== undefined) payload.lastName = String(updates.lastName || '').trim()
@@ -88,6 +96,19 @@ export async function updateChild(userId, childId, updates) {
   payload.updatedAt = Timestamp.now()
 
   await updateDoc(childRef, payload)
+
+  if (needsNameSync) {
+    const mergedChild = {
+      ...currentData,
+      ...payload,
+    }
+    const childName =
+      mergedChild.displayName ||
+      [mergedChild.firstName || '', mergedChild.lastName || ''].filter(Boolean).join(' ').trim() ||
+      'Unknown Child'
+
+    await syncAttendanceSortKeysForChild(userId, childId, childName)
+  }
 }
 
 export async function deleteChild(userId, childId) {

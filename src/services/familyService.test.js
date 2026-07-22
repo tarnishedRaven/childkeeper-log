@@ -8,6 +8,12 @@ import {
   deleteFamily,
 } from './familyService'
 
+vi.mock('./attendanceService', () => ({
+  syncAttendanceSortKeysForFamily: vi.fn(),
+}))
+
+import { syncAttendanceSortKeysForFamily } from './attendanceService'
+
 vi.mock('firebase/firestore')
 vi.mock('../firebase', () => ({
   db: {},
@@ -71,6 +77,7 @@ describe('familyService', () => {
   it('updateFamily updates metadata', async () => {
     firestore.doc.mockReturnValue({})
     firestore.updateDoc.mockResolvedValue()
+    syncAttendanceSortKeysForFamily.mockResolvedValue(3)
 
     await updateFamily('u1', 'f1', {
       name: 'Updated',
@@ -83,6 +90,7 @@ describe('familyService', () => {
     expect(payload.name).toBe('Updated')
     expect(payload.phone).toBe('999')
     expect(payload.isActive).toBe(false)
+    expect(syncAttendanceSortKeysForFamily).toHaveBeenCalledWith('u1', 'f1', 'Updated')
   })
 
   it('deleteFamily blocks when active children exist', async () => {

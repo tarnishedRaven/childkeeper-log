@@ -2,14 +2,21 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  documentId,
   doc,
+  endBefore,
+  getCountFromServer,
+  getDoc,
   getDocs,
   limit,
+  limitToLast,
   orderBy,
   query,
+  startAfter,
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import {
@@ -27,8 +34,114 @@ function attendanceCollection(userId) {
   return collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.ATTENDANCE)
 }
 
+function familiesCollection(userId) {
+  return collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES)
+}
+
+function childrenCollection(userId) {
+  return collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.CHILDREN)
+}
+
+function familyDocRef(userId, familyId) {
+  return doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.FAMILIES, familyId)
+}
+
+function childDocRef(userId, childId) {
+  return doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.CHILDREN, childId)
+}
+
 function toDateTime(date, time) {
   return new Date(`${date}T${time}:00`)
+}
+
+function normalizeSortKey(value, fallback = 'unknown') {
+  const normalized = String(value || '').trim().toLowerCase()
+  return normalized || fallback
+}
+
+function buildChildDisplayName(childData) {
+  return (
+    childData?.displayName ||
+    [childData?.firstName || '', childData?.lastName || ''].filter(Boolean).join(' ').trim() ||
+    'Unknown Child'
+  )
+}
+
+function buildSortKeys({ familyName, childDisplayName, lunchBrought }) {
+  return {
+    familySortKey: normalizeSortKey(familyName, 'unknown family'),
+    childSortKey: normalizeSortKey(childDisplayName, 'unknown child'),
+    lunchSortKey: toLunchSortKey(Boolean(lunchBrought)),
+  }
+}
+
+async function commitBatchUpdates(updates) {
+  if (updates.length === 0) {
+    return 0
+  }
+
+  let updatedCount = 0
+  for (let index = 0; index < updates.length; index += 400) {
+    const batch = writeBatch(db)
+    const chunk = updates.slice(index, index + 400)
+
+    chunk.forEach(({ ref, data }) => {
+      batch.update(ref, data)
+    })
+
+    await batch.commit()
+    updatedCount += chunk.length
+  }
+
+  return updatedCount
+}
+
+function toLunchSortKey(lunchBrought) {
+  return lunchBrought ? 1 : 0
+}
+
+async function resolveSortKeys(userId, { childId, familyId, lunchBrought }) {
+  const [childSnapshot, familySnapshot] = await Promise.all([
+    childId ? getDoc(childDocRef(userId, childId)) : Promise.resolve(null),
+    familyId ? getDoc(familyDocRef(userId, familyId)) : Promise.resolve(null),
+  ])
+
+  const childData = childSnapshot?.exists() ? childSnapshot.data() : null
+  const familyData = familySnapshot?.exists() ? familySnapshot.data() : null
+
+  return buildSortKeys({
+    familyName: familyData?.name || 'Unknown Family',
+    childDisplayName: buildChildDisplayName(childData),
+    lunchBrought,
+  })
+}
+
+function toPagingCursor(docSnapshot) {
+  if (!docSnapshot) {
+    return null
+  }
+
+  return {
+    id: docSnapshot.id,
+    snapshot: docSnapshot,
+  }
+}
+
+function sortOrderBy(sortKey, sortDir) {
+  const direction = sortDir === 'asc' ? 'asc' : 'desc'
+  const sortMap = {
+    date: [orderBy('date', direction), orderBy('startAt', 'asc'), orderBy(documentId(), 'asc')],
+    family: [orderBy('familySortKey', direction), orderBy('createdAt', 'desc'), orderBy(documentId(), 'asc')],
+    child: [orderBy('childSortKey', direction), orderBy('createdAt', 'desc'), orderBy(documentId(), 'asc')],
+    time: [orderBy('startAt', direction), orderBy('createdAt', 'desc'), orderBy(documentId(), 'asc')],
+    lunch: [orderBy('lunchSortKey', direction), orderBy('createdAt', 'desc'), orderBy(documentId(), 'asc')],
+  }
+
+  return sortMap[sortKey] || sortMap.date
+}
+
+function mapSnapshotDocs(snapshotDocs) {
+  return snapshotDocs.map((entry) => ({ id: entry.id, ...entry.data() }))
 }
 
 function toSerializableRecord(validatedRecord) {
@@ -41,6 +154,9 @@ function toSerializableRecord(validatedRecord) {
     startAt: Timestamp.fromDate(validatedRecord.startAt),
     endAt: Timestamp.fromDate(validatedRecord.endAt),
     lunchBrought: validatedRecord.lunchBrought,
+    familySortKey: validatedRecord.familySortKey || 'unknown family',
+    childSortKey: validatedRecord.childSortKey || 'unknown child',
+    lunchSortKey: toLunchSortKey(Boolean(validatedRecord.lunchBrought)),
     notes: validatedRecord.notes,
     status: ATTENDANCE_STATUS.ACTIVE,
     source: ATTENDANCE_SOURCE.MANUAL,
@@ -82,12 +198,19 @@ export async function addAttendance(userId, attendanceData) {
     throw new Error('Overlapping attendance for the same child and date')
   }
 
+  const sortKeys = await resolveSortKeys(userId, {
+    childId: validated.childId,
+    familyId: validated.familyId,
+    lunchBrought: validated.lunchBrought,
+  })
+
   const docRef = await addDoc(
     attendanceCollection(userId),
     toSerializableRecord({
       ...validated,
       rate: attendanceData.rate,
       numChildren: attendanceData.numChildren,
+      ...sortKeys,
     })
   )
   return docRef.id
@@ -130,9 +253,79 @@ export async function getAttendanceByFamilyDateRange(userId, familyId, startDate
 }
 
 export async function getRecentAttendance(userId, maxEntries = 10) {
-  const q = query(attendanceCollection(userId), orderBy('createdAt', 'desc'), limit(maxEntries))
+  const q = query(
+    attendanceCollection(userId),
+    orderBy('createdAt', 'desc'),
+    orderBy(documentId(), 'asc'),
+    limit(maxEntries)
+  )
   const snapshot = await getDocs(q)
-  return snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
+  return mapSnapshotDocs(snapshot.docs)
+}
+
+export async function getAttendanceTotalCount(userId) {
+  const snapshot = await getCountFromServer(attendanceCollection(userId))
+  return Number(snapshot.data()?.count || 0)
+}
+
+export async function getAttendancePage(
+  userId,
+  {
+    pageSize = 25,
+    sortKey = 'date',
+    sortDir = 'desc',
+    cursor = null,
+    direction = 'next',
+  } = {}
+) {
+  if (pageSize < 1) {
+    throw new Error('pageSize must be at least 1')
+  }
+
+  const baseOrder = sortOrderBy(sortKey, sortDir)
+  const pageLimit = pageSize + 1
+  const pagingDirection = direction === 'prev' ? 'prev' : 'next'
+  const cursorSnapshot = cursor?.snapshot || null
+
+  const constraints = [...baseOrder]
+  if (cursorSnapshot && pagingDirection === 'next') {
+    constraints.push(startAfter(cursorSnapshot))
+  }
+  if (cursorSnapshot && pagingDirection === 'prev') {
+    constraints.push(endBefore(cursorSnapshot))
+  }
+
+  if (pagingDirection === 'prev') {
+    constraints.push(limitToLast(pageLimit))
+  } else {
+    constraints.push(limit(pageLimit))
+  }
+
+  const pageQuery = query(attendanceCollection(userId), ...constraints)
+  const snapshot = await getDocs(pageQuery)
+  const docs = snapshot.docs
+
+  let hasMoreInDirection = false
+  let pageDocs = docs
+
+  if (docs.length > pageSize) {
+    hasMoreInDirection = true
+    pageDocs = pagingDirection === 'prev' ? docs.slice(1) : docs.slice(0, pageSize)
+  }
+
+  const firstDoc = pageDocs[0] || null
+  const lastDoc = pageDocs.length > 0 ? pageDocs[pageDocs.length - 1] : null
+
+  const hasPrev = pagingDirection === 'prev' ? hasMoreInDirection : Boolean(cursorSnapshot)
+  const hasNext = pagingDirection === 'next' ? hasMoreInDirection : Boolean(cursorSnapshot)
+
+  return {
+    rows: mapSnapshotDocs(pageDocs),
+    hasPrev,
+    hasNext,
+    firstCursor: toPagingCursor(firstDoc),
+    lastCursor: toPagingCursor(lastDoc),
+  }
 }
 
 export async function getFamilyIdsWithAttendance(userId) {
@@ -147,6 +340,93 @@ export async function getFamilyIdsWithAttendance(userId) {
   })
 
   return Array.from(familyIds)
+}
+
+export async function syncAttendanceSortKeysForFamily(userId, familyId, familyName) {
+  if (!familyId) {
+    throw new Error('Family ID is required')
+  }
+
+  const snapshot = await getDocs(query(attendanceCollection(userId), where('familyId', '==', familyId)))
+  const updates = snapshot.docs
+    .map((entry) => ({
+      ref: entry.ref,
+      data: {
+        familySortKey: normalizeSortKey(familyName, 'unknown family'),
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: Timestamp.now(),
+      },
+    }))
+
+  return commitBatchUpdates(updates)
+}
+
+export async function syncAttendanceSortKeysForChild(userId, childId, childName) {
+  if (!childId) {
+    throw new Error('Child ID is required')
+  }
+
+  const snapshot = await getDocs(query(attendanceCollection(userId), where('childId', '==', childId)))
+  const updates = snapshot.docs
+    .map((entry) => ({
+      ref: entry.ref,
+      data: {
+        childSortKey: normalizeSortKey(childName, 'unknown child'),
+        schemaVersion: SCHEMA_VERSION,
+        updatedAt: Timestamp.now(),
+      },
+    }))
+
+  return commitBatchUpdates(updates)
+}
+
+export async function backfillAttendanceSortKeys(userId) {
+  const [familiesSnapshot, childrenSnapshot, attendanceSnapshot] = await Promise.all([
+    getDocs(familiesCollection(userId)),
+    getDocs(childrenCollection(userId)),
+    getDocs(attendanceCollection(userId)),
+  ])
+
+  const familyById = familiesSnapshot.docs.reduce((acc, entry) => {
+    acc[entry.id] = entry.data()
+    return acc
+  }, {})
+
+  const childById = childrenSnapshot.docs.reduce((acc, entry) => {
+    acc[entry.id] = entry.data()
+    return acc
+  }, {})
+
+  const updates = attendanceSnapshot.docs.flatMap((entry) => {
+    const data = entry.data()
+    const nextSortKeys = buildSortKeys({
+      familyName: familyById[data.familyId]?.name || 'Unknown Family',
+      childDisplayName: buildChildDisplayName(childById[data.childId]),
+      lunchBrought: data.lunchBrought,
+    })
+
+    const hasChanges =
+      data.familySortKey !== nextSortKeys.familySortKey ||
+      data.childSortKey !== nextSortKeys.childSortKey ||
+      data.lunchSortKey !== nextSortKeys.lunchSortKey
+
+    if (!hasChanges) {
+      return []
+    }
+
+    return [
+      {
+        ref: entry.ref,
+        data: {
+          ...nextSortKeys,
+          schemaVersion: SCHEMA_VERSION,
+          updatedAt: Timestamp.now(),
+        },
+      },
+    ]
+  })
+
+  return commitBatchUpdates(updates)
 }
 
 export async function updateAttendance(userId, attendanceId, updates) {
@@ -175,6 +455,16 @@ export async function updateAttendance(userId, attendanceId, updates) {
     payload.endTime = validated.endTime
     payload.notes = validated.notes
     payload.lunchBrought = validated.lunchBrought
+
+    const sortKeys = await resolveSortKeys(userId, {
+      childId: validated.childId,
+      familyId: validated.familyId,
+      lunchBrought: validated.lunchBrought,
+    })
+
+    payload.familySortKey = sortKeys.familySortKey
+    payload.childSortKey = sortKeys.childSortKey
+    payload.lunchSortKey = sortKeys.lunchSortKey
   }
 
   payload.schemaVersion = SCHEMA_VERSION

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { COLLECTIONS, SCHEMA_VERSION } from '../constants/schemaV2'
+import { syncAttendanceSortKeysForFamily } from './attendanceService'
 
 /**
  * Deprecated compatibility helper. Rates moved to global config in schema v2.
@@ -114,6 +115,10 @@ export async function updateFamily(userId, familyId, updates) {
   dataToUpdate.updatedAt = Timestamp.now()
 
   await updateDoc(familyRef, dataToUpdate)
+
+  if (dataToUpdate.name !== undefined) {
+    await syncAttendanceSortKeysForFamily(userId, familyId, dataToUpdate.name)
+  }
 }
 
 /**

@@ -5,7 +5,9 @@ import { getFamilies } from '../services/familyService'
 import { getChildren } from '../services/childService'
 import {
   addAttendanceBatch,
-  getRecentAttendance,
+  backfillAttendanceSortKeys,
+  getAttendancePage,
+  getAttendanceTotalCount,
   updateAttendance,
   deleteAttendance,
 } from '../services/attendanceService'
@@ -28,6 +30,8 @@ const defaultFormData = {
   lunchByChild: {},
   childTimesById: {},
 }
+
+const PAGE_SIZE = 25
 
 export default function LogHours() {
   const { user } = useAuth()
@@ -56,6 +60,13 @@ export default function LogHours() {
   const [formData, setFormData] = useState(defaultFormData)
   const [sortCol, setSortCol] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
+  const [pageIndex, setPageIndex] = useState(0)
+  const [pageCursors, setPageCursors] = useState([])
+  const [hasNextPage, setHasNextPage] = useState(false)
+  const [hasPrevPage, setHasPrevPage] = useState(false)
+  const [paging, setPaging] = useState(false)
+  const [repairingSortKeys, setRepairingSortKeys] = useState(false)
+  const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
     loadData()
@@ -69,15 +80,30 @@ export default function LogHours() {
 
       if (!user) return
 
-      const [familiesData, childrenData, entriesData] = await Promise.all([
+      const [familiesData, childrenData, pageData, totalCount] = await Promise.all([
         getFamilies(user.uid),
         getChildren(user.uid),
-        getRecentAttendance(user.uid, 25),
+        getAttendancePage(user.uid, {
+          pageSize: PAGE_SIZE,
+          sortKey: sortCol,
+          sortDir,
+        }),
+        getAttendanceTotalCount(user.uid),
       ])
 
       setFamilies(familiesData)
       setChildren(childrenData)
-      setEntries(entriesData)
+      setEntries(pageData.rows)
+      setPageIndex(0)
+      setPageCursors([
+        {
+          first: pageData.firstCursor,
+          last: pageData.lastCursor,
+        },
+      ])
+      setHasPrevPage(pageData.hasPrev)
+      setHasNextPage(pageData.hasNext)
+      setTotalPages(Math.max(1, Math.ceil(totalCount / PAGE_SIZE)))
 
       if (isOnline && hasPendingSync) {
         markSyncing()
@@ -109,35 +135,192 @@ export default function LogHours() {
     [children]
   )
 
-  const sortedEntries = useMemo(() => {
-    return [...entries].sort((a, b) => {
-      let aVal, bVal
-      switch (sortCol) {
-        case 'family':
-          aVal = families.find((f) => f.id === a.familyId)?.name ?? ''
-          bVal = families.find((f) => f.id === b.familyId)?.name ?? ''
-          break
-        case 'child':
-          aVal = childNameById[a.childId] ?? ''
-          bVal = childNameById[b.childId] ?? ''
-          break
-        case 'time':
-          aVal = a.startTime ?? ''
-          bVal = b.startTime ?? ''
-          break
-        case 'lunch':
-          aVal = a.lunchBrought ? 1 : 0
-          bVal = b.lunchBrought ? 1 : 0
-          break
-        default:
-          aVal = a.date ?? ''
-          bVal = b.date ?? ''
+  const paginationLabel = useMemo(
+    () => `Page ${pageIndex + 1} of ${totalPages}`,
+    [pageIndex, totalPages]
+  )
+
+  const paginationTokens = useMemo(() => {
+    const tokens = []
+    const firstPageLimit = Math.min(3, totalPages)
+    for (let page = 1; page <= firstPageLimit; page += 1) {
+      tokens.push(page)
+    }
+
+    const currentPage = pageIndex + 1
+    if (totalPages > 3) {
+      if (currentPage > 3 && currentPage < totalPages) {
+        tokens.push('ellipsis-current')
+        tokens.push(currentPage)
       }
-      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-  }, [entries, sortCol, sortDir, families, childNameById])
+      if (currentPage < totalPages - 1) {
+        tokens.push('ellipsis-last')
+      }
+      if (currentPage >= totalPages && !tokens.includes(totalPages)) {
+        tokens.push(totalPages)
+      } else if (currentPage < totalPages && totalPages > 3) {
+        tokens.push(totalPages)
+      }
+    }
+
+    return tokens
+  }, [pageIndex, totalPages])
+
+  const loadPage = async ({ direction = 'next', cursor = null, nextPageIndex = 0 }) => {
+    if (!user) return
+
+    try {
+      setPaging(true)
+      setError('')
+
+      const pageData = await getAttendancePage(user.uid, {
+        pageSize: PAGE_SIZE,
+        sortKey: sortCol,
+        sortDir,
+        direction,
+        cursor,
+      })
+
+      setEntries(pageData.rows)
+      setPageIndex(nextPageIndex)
+      setHasPrevPage(pageData.hasPrev)
+      setHasNextPage(pageData.hasNext)
+      setPageCursors((prev) => {
+        const next = [...prev]
+        next[nextPageIndex] = {
+          first: pageData.firstCursor,
+          last: pageData.lastCursor,
+        }
+        return next
+      })
+    } catch (err) {
+      setError(err.message)
+      markSyncError(err.message)
+    } finally {
+      setPaging(false)
+    }
+  }
+
+  const resetAndLoadSortedFirstPage = async (nextSortCol, nextSortDir) => {
+    if (!user) return
+
+    try {
+      setPaging(true)
+      setError('')
+      const pageData = await getAttendancePage(user.uid, {
+        pageSize: PAGE_SIZE,
+        sortKey: nextSortCol,
+        sortDir: nextSortDir,
+      })
+
+      setEntries(pageData.rows)
+      setPageIndex(0)
+      setHasPrevPage(pageData.hasPrev)
+      setHasNextPage(pageData.hasNext)
+      setPageCursors([
+        {
+          first: pageData.firstCursor,
+          last: pageData.lastCursor,
+        },
+      ])
+    } catch (err) {
+      setError(err.message)
+      markSyncError(err.message)
+    } finally {
+      setPaging(false)
+    }
+  }
+
+  const jumpToPage = async (targetPageIndex) => {
+    if (!user || paging) return
+    if (targetPageIndex === pageIndex || targetPageIndex < 0 || targetPageIndex >= totalPages) return
+
+    try {
+      setPaging(true)
+      setError('')
+
+      if (targetPageIndex === 0) {
+        const firstPage = await getAttendancePage(user.uid, {
+          pageSize: PAGE_SIZE,
+          sortKey: sortCol,
+          sortDir,
+        })
+
+        setEntries(firstPage.rows)
+        setPageIndex(0)
+        setHasPrevPage(firstPage.hasPrev)
+        setHasNextPage(firstPage.hasNext)
+        setPageCursors([
+          {
+            first: firstPage.firstCursor,
+            last: firstPage.lastCursor,
+          },
+        ])
+        return
+      }
+
+      let currentIndex = pageIndex
+      let currentPage = {
+        first: pageCursors[pageIndex]?.first || null,
+        last: pageCursors[pageIndex]?.last || null,
+      }
+      let finalPageData = {
+        rows: entries,
+        hasPrev: hasPrevPage,
+        hasNext: hasNextPage,
+      }
+      const nextCursors = [...pageCursors]
+
+      while (currentIndex < targetPageIndex) {
+        if (!currentPage.last) break
+        const pageData = await getAttendancePage(user.uid, {
+          pageSize: PAGE_SIZE,
+          sortKey: sortCol,
+          sortDir,
+          direction: 'next',
+          cursor: currentPage.last,
+        })
+
+        currentIndex += 1
+        currentPage = {
+          first: pageData.firstCursor,
+          last: pageData.lastCursor,
+        }
+        nextCursors[currentIndex] = currentPage
+        finalPageData = pageData
+      }
+
+      while (currentIndex > targetPageIndex) {
+        if (!currentPage.first) break
+        const pageData = await getAttendancePage(user.uid, {
+          pageSize: PAGE_SIZE,
+          sortKey: sortCol,
+          sortDir,
+          direction: 'prev',
+          cursor: currentPage.first,
+        })
+
+        currentIndex -= 1
+        currentPage = {
+          first: pageData.firstCursor,
+          last: pageData.lastCursor,
+        }
+        nextCursors[currentIndex] = currentPage
+        finalPageData = pageData
+      }
+
+      setEntries(finalPageData.rows)
+      setPageIndex(currentIndex)
+      setHasPrevPage(finalPageData.hasPrev)
+      setHasNextPage(finalPageData.hasNext)
+      setPageCursors(nextCursors)
+    } catch (err) {
+      setError(err.message)
+      markSyncError(err.message)
+    } finally {
+      setPaging(false)
+    }
+  }
 
   const toggleChildSelection = (childId) => {
     setFormData((prev) => {
@@ -341,10 +524,72 @@ export default function LogHours() {
 
   const handleSort = (col) => {
     if (sortCol === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      const nextDir = sortDir === 'asc' ? 'desc' : 'asc'
+      setSortDir(nextDir)
+      resetAndLoadSortedFirstPage(col, nextDir)
     } else {
       setSortCol(col)
       setSortDir('asc')
+      resetAndLoadSortedFirstPage(col, 'asc')
+    }
+  }
+
+  const handleNextPage = async () => {
+    if (pageIndex >= totalPages - 1 || paging) return
+    const currentPage = pageCursors[pageIndex]
+    if (!currentPage?.last) {
+      await jumpToPage(pageIndex + 1)
+      return
+    }
+    await loadPage({
+      direction: 'next',
+      cursor: currentPage.last,
+      nextPageIndex: pageIndex + 1,
+    })
+  }
+
+  const handlePrevPage = async () => {
+    if (pageIndex <= 0 || paging) return
+    const currentPage = pageCursors[pageIndex]
+    if (!currentPage?.first) {
+      await jumpToPage(pageIndex - 1)
+      return
+    }
+    await loadPage({
+      direction: 'prev',
+      cursor: currentPage.first,
+      nextPageIndex: pageIndex - 1,
+    })
+  }
+
+  const handleRepairSortKeys = async () => {
+    if (!user) return
+    if (!isOnline) {
+      setError('Reconnect to run attendance sort repair')
+      return
+    }
+
+    if (!window.confirm('Repair attendance sorting data for this account?')) {
+      return
+    }
+
+    try {
+      setRepairingSortKeys(true)
+      setError('')
+      setSuccess('')
+      const updatedCount = await backfillAttendanceSortKeys(user.uid)
+      await loadData()
+      setSuccess(
+        updatedCount > 0
+          ? `Repaired sorting data for ${updatedCount} attendance entr${updatedCount === 1 ? 'y' : 'ies'}`
+          : 'Attendance sorting data is already up to date'
+      )
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err) {
+      setError(err.message)
+      markSyncError(err.message)
+    } finally {
+      setRepairingSortKeys(false)
     }
   }
 
@@ -370,7 +615,17 @@ export default function LogHours() {
           syncError={syncError}
           isStaleVersion={isStaleVersion}
         />
-        <h1 className="text-3xl font-bold text-white mb-8">Log Attendance</h1>
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-bold text-white">Log Attendance</h1>
+          <button
+            type="button"
+            onClick={handleRepairSortKeys}
+            disabled={!isOnline || repairingSortKeys}
+            className="px-4 py-2 bg-figma-elevated text-white rounded-md disabled:opacity-60"
+          >
+            {repairingSortKeys ? 'Repairing Sort Data...' : 'Repair Attendance Sorting'}
+          </button>
+        </div>
 
         {error && (
           <div className="mb-4 p-4 bg-figma-error-surface border border-figma-error rounded-md">
@@ -544,58 +799,110 @@ export default function LogHours() {
                   <p className="text-figma-text-secondary">No attendance yet</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-figma-border">
-                    <thead className="bg-figma-elevated">
-                      <tr>
-                        <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('date')}>
-                          Date <span className={sortCol === 'date' ? 'text-white' : 'text-gray-600'}>{sortCol === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('family')}>
-                          Family <span className={sortCol === 'family' ? 'text-white' : 'text-gray-600'}>{sortCol === 'family' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('child')}>
-                          Child <span className={sortCol === 'child' ? 'text-white' : 'text-gray-600'}>{sortCol === 'child' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('time')}>
-                          Time <span className={sortCol === 'time' ? 'text-white' : 'text-gray-600'}>{sortCol === 'time' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('lunch')}>
-                          Home Lunch <span className={sortCol === 'lunch' ? 'text-white' : 'text-gray-600'}>{sortCol === 'lunch' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
-                        </th>
-                        <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedEntries.map((entry) => {
-                        const family = families.find((row) => row.id === entry.familyId)
-                        return (
-                          <tr key={entry.id} className="hover:bg-figma-elevated">
-                            <td className="border border-figma-border px-4 py-2 text-white">{formatDisplayDate(entry.date)}</td>
-                            <td className="border border-figma-border px-4 py-2 text-white">{family?.name || 'Unknown'}</td>
-                            <td className="border border-figma-border px-4 py-2 text-white">
-                              {childNameById[entry.childId] || 'Unknown Child'}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {formatTime12Hour(entry.startTime)} - {formatTime12Hour(entry.endTime)}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center text-white">
-                              {entry.lunchBrought ? 'Yes' : 'No'}
-                            </td>
-                            <td className="border border-figma-border px-4 py-2 text-center">
-                              <button onClick={() => handleEdit(entry)} className="text-figma-accent hover:underline mr-3">
-                                Edit
-                              </button>
-                              <button onClick={() => handleDelete(entry.id)} className="text-figma-error hover:underline">
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse border border-figma-border">
+                      <thead className="bg-figma-elevated">
+                        <tr>
+                          <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('date')}>
+                            Date <span className={sortCol === 'date' ? 'text-white' : 'text-gray-600'}>{sortCol === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                          </th>
+                          <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('family')}>
+                            Family <span className={sortCol === 'family' ? 'text-white' : 'text-gray-600'}>{sortCol === 'family' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                          </th>
+                          <th className="border border-figma-border px-4 py-2 text-left text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('child')}>
+                            Child <span className={sortCol === 'child' ? 'text-white' : 'text-gray-600'}>{sortCol === 'child' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                          </th>
+                          <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('time')}>
+                            Time <span className={sortCol === 'time' ? 'text-white' : 'text-gray-600'}>{sortCol === 'time' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                          </th>
+                          <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary cursor-pointer select-none" onClick={() => handleSort('lunch')}>
+                            Home Lunch <span className={sortCol === 'lunch' ? 'text-white' : 'text-gray-600'}>{sortCol === 'lunch' ? (sortDir === 'asc' ? '↑' : '↓') : '⇅'}</span>
+                          </th>
+                          <th className="border border-figma-border px-4 py-2 text-center text-figma-text-secondary">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {entries.map((entry) => {
+                          const family = families.find((row) => row.id === entry.familyId)
+                          return (
+                            <tr key={entry.id} className="hover:bg-figma-elevated">
+                              <td className="border border-figma-border px-4 py-2 text-white">{formatDisplayDate(entry.date)}</td>
+                              <td className="border border-figma-border px-4 py-2 text-white">{family?.name || 'Unknown'}</td>
+                              <td className="border border-figma-border px-4 py-2 text-white">
+                                {childNameById[entry.childId] || 'Unknown Child'}
+                              </td>
+                              <td className="border border-figma-border px-4 py-2 text-center text-white">
+                                {formatTime12Hour(entry.startTime)} - {formatTime12Hour(entry.endTime)}
+                              </td>
+                              <td className="border border-figma-border px-4 py-2 text-center text-white">
+                                {entry.lunchBrought ? 'Yes' : 'No'}
+                              </td>
+                              <td className="border border-figma-border px-4 py-2 text-center">
+                                <button onClick={() => handleEdit(entry)} className="text-figma-accent hover:underline mr-3">
+                                  Edit
+                                </button>
+                                <button onClick={() => handleDelete(entry.id)} className="text-figma-error hover:underline">
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={!hasPrevPage || paging}
+                      className="px-3 py-2 bg-figma-elevated text-white rounded-md disabled:opacity-60"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex flex-col items-center gap-2">
+                      <p className="text-sm text-figma-text-secondary">{paginationLabel}</p>
+                      <div className="flex items-center gap-1" aria-label="Page numbers">
+                        {paginationTokens.map((token, index) => {
+                          if (typeof token === 'string') {
+                            return (
+                              <span key={`${token}-${index}`} className="px-2 text-figma-text-secondary">
+                                ...
+                              </span>
+                            )
+                          }
+
+                          const isCurrent = token === pageIndex + 1
+                          return (
+                            <button
+                              type="button"
+                              key={token}
+                              onClick={() => jumpToPage(token - 1)}
+                              disabled={paging || isCurrent}
+                              aria-label={`Go to page ${token}`}
+                              className={`min-w-8 px-2 py-1 rounded text-xs text-center ${
+                                isCurrent
+                                  ? 'bg-figma-accent text-white'
+                                  : 'bg-figma-elevated text-figma-text-secondary hover:bg-figma-border disabled:opacity-60'
+                              }`}
+                            >
+                              {token}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={!hasNextPage || paging}
+                      className="px-3 py-2 bg-figma-elevated text-white rounded-md disabled:opacity-60"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
