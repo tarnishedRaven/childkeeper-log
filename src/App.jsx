@@ -16,7 +16,7 @@ const Invoices = lazy(() => import('./pages/Invoices'))
 
 function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <Suspense fallback={<div className="min-h-screen bg-figma-base" aria-hidden="true" />}>
           <Routes>
