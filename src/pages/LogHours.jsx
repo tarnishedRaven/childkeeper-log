@@ -3,6 +3,7 @@ import Navbar from '../components/Navbar'
 import { useAuth } from '../context/AuthContext'
 import { getFamilies } from '../services/familyService'
 import { getChildren } from '../services/childService'
+import { useFormDraft } from '../hooks/useFormDraft'
 import {
   addAttendanceBatch,
   backfillAttendanceSortKeys,
@@ -52,12 +53,15 @@ export default function LogHours() {
   const [children, setChildren] = useState([])
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [editingEntryFamilyId, setEditingEntryFamilyId] = useState('')
   const [editingChildId, setEditingChildId] = useState('')
   const [formData, setFormData] = useState(defaultFormData)
+  const { hasDraft, saveDraft, restoreDraft, clearDraft } = useFormDraft(formData, defaultFormData, isDataLoaded)
+  const [showDraftPrompt, setShowDraftPrompt] = useState(false)
   const [sortCol, setSortCol] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
   const [pageIndex, setPageIndex] = useState(0)
@@ -71,6 +75,24 @@ export default function LogHours() {
   useEffect(() => {
     loadData()
   }, [user])
+
+  // Check for draft after data loads
+  useEffect(() => {
+    if (hasDraft && !editingEntryId && user && !showDraftPrompt) {
+      // Peek at the draft to check if it has children selected
+      const draft = restoreDraft()
+      if (draft && draft.selectedChildIds && draft.selectedChildIds.length > 0) {
+        setShowDraftPrompt(true)
+      }
+    }
+  }, [hasDraft, user, editingEntryId, showDraftPrompt, restoreDraft])
+
+  // Auto-save form data (but not while draft prompt is showing or if no children selected)
+  useEffect(() => {
+    if (!showDraftPrompt && formData.selectedChildIds.length > 0) {
+      saveDraft()
+    }
+  }, [formData, saveDraft, showDraftPrompt])
 
   const loadData = async () => {
     try {
@@ -114,6 +136,7 @@ export default function LogHours() {
       markSyncError(err.message)
     } finally {
       setLoading(false)
+      setIsDataLoaded(true)
     }
   }
 
@@ -464,10 +487,12 @@ export default function LogHours() {
         markPendingSync()
       }
 
-        setEditingEntryId(null)
-        setEditingEntryFamilyId('')
+      clearDraft()
+      setEditingEntryId(null)
+      setEditingEntryFamilyId('')
       setEditingChildId('')
       setFormData(defaultFormData)
+      setShowDraftPrompt(false)
       await loadData()
       setTimeout(() => setSuccess(''), 3000)
     } catch (err) {
@@ -593,6 +618,25 @@ export default function LogHours() {
     }
   }
 
+  const handleRestoreDraft = () => {
+    const draft = restoreDraft()
+    if (draft) {
+      setFormData(draft)
+      clearDraft() // Remove draft from localStorage after restoring
+      setShowDraftPrompt(false)
+      setSuccess('Draft restored')
+      setTimeout(() => setSuccess(''), 2000)
+    } else {
+      console.warn('No draft found to restore')
+      setShowDraftPrompt(false)
+    }
+  }
+
+  const handleDiscardDraft = () => {
+    clearDraft()
+    setShowDraftPrompt(false)
+  }
+
   if (loading) {
     return (
       <>
@@ -615,16 +659,39 @@ export default function LogHours() {
           syncError={syncError}
           isStaleVersion={isStaleVersion}
         />
+
+        {showDraftPrompt && (
+          <div className="mb-4 p-4 bg-figma-elevated border-l-4 border-figma-accent rounded-md flex items-center justify-between gap-4">
+            <p className="text-figma-text-secondary">You have unsaved changes. Would you like to restore them?</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleRestoreDraft}
+                className="px-4 py-2 bg-figma-accent text-white rounded-md hover:opacity-90"
+              >
+                Restore
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-4 py-2 bg-figma-elevated text-figma-text-secondary border border-figma-border rounded-md hover:bg-figma-border"
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-3xl font-bold text-white">Log Attendance</h1>
-          <button
+          {/* <button
             type="button"
             onClick={handleRepairSortKeys}
             disabled={!isOnline || repairingSortKeys}
             className="px-4 py-2 bg-figma-elevated text-white rounded-md disabled:opacity-60"
           >
             {repairingSortKeys ? 'Repairing Sort Data...' : 'Repair Attendance Sorting'}
-          </button>
+          </button> */}
         </div>
 
         {error && (
